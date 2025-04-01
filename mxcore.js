@@ -58,9 +58,6 @@ app.use("/mx", profileRoutes);
 const mxfilemanager = require("./mxgamecoder/mxroutes/mxfilemanager");
 app.use("/mx", mxfilemanager);
 
-const mxpassword = require('./mxgamecoder/mxroutes/mxpassword');
-app.use('/mx/password', mxpassword);
-
 // Start Server
 app.listen(PORT, async () => {
     try {
