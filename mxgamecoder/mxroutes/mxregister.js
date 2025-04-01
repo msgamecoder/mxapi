@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../mxconfig/mxdatabase'); // Database connection
-const crypto = require('crypto'); // For password hashing & token generation
+const bcrypt = require('bcryptjs'); // Use bcrypt for hashing
+const crypto = require('crypto'); // For token generation
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 const VERIFICATION_URL = process.env.VERIFICATION_URL;
 
-// 📩 Setup Nodemailer transporter (Reuse connection for speed)
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: process.env.SMTP_EMAIL, pass: process.env.SMTP_PASSWORD }
@@ -17,7 +17,7 @@ router.post('/', async (req, res) => {
     try {
         const { full_name, username, email, phone_number, password, location, dob } = req.body;
 
-        // 🔍 Check if user exists in `users` or `temp_users`
+        // 🔍 Check if user exists
         const checkResult = await pool.query(
             `SELECT 1 FROM users WHERE email = $1 OR username = $2 OR phone_number = $3
              UNION 
@@ -29,10 +29,11 @@ router.post('/', async (req, res) => {
             return res.status(400).json({ error: '❌ User already exists' });
         }
 
-        // 🔑 Hash Password (Faster with SHA-256)
-        const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+        // 🔑 Hash Password (Use bcrypt)
+        const saltRounds = 10;
+        const passwordHash = await bcrypt.hash(password, saltRounds);
 
-        // 🛡️ Generate Verification Token (Use URL-safe encoding)
+        // 🛡️ Generate Verification Token
         const verificationToken = crypto.randomBytes(32).toString('hex');
         const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours expiry
 
@@ -43,9 +44,8 @@ router.post('/', async (req, res) => {
             [full_name, username, email, phone_number, passwordHash, location, dob, verificationToken, tokenExpiresAt]
         );
 
-        // 📩 Send Verification Email (Non-blocking for speed)
+        // 📩 Send Verification Email
         const verificationLink = `${VERIFICATION_URL}/${verificationToken}`;
-
         transporter.sendMail({
             from: process.env.SMTP_EMAIL,
             to: email,

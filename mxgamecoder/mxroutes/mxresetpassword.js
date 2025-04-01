@@ -27,7 +27,7 @@ router.get("/reset-password", (req, res) => {
     console.log("✅ Token verified. Redirecting user...");
 
     // Redirect user to frontend reset form with token
-    res.redirect(`http://localhost:5000/mx/reset-password-form?token=${token}`);
+    res.redirect(`https://mxapi.onrender.com/mx/reset-password-form?token=${token}`);
   } catch (error) {
     console.error("❌ Token verification failed:", error.message);
     res.status(400).json({ error: "❌ Invalid or expired reset link." });

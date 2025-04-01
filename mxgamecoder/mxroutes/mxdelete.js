@@ -63,7 +63,7 @@ router.post("/delete-account", async (req, res) => {
         fs.writeFileSync(path.join(deleteRequestsFolder, `${email}.json`), JSON.stringify(requestData, null, 2));
 
         // 📧 Send confirmation email
-        const confirmLink = `http://localhost:5000/mx/confirm-delete?token=${token}&email=${encodeURIComponent(email)}`;
+        const confirmLink = `https://mxapi.onrender.com/mx/confirm-delete?token=${token}&email=${encodeURIComponent(email)}`;
         const mailOptions = {
             from: process.env.SMTP_EMAIL,
             to: email,

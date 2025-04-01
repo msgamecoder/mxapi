@@ -1,10 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../mxconfig/mxdatabase'); // Database connection
-const crypto = require('crypto'); // For password hashing
+const bcrypt = require('bcryptjs'); // For password hashing
 const jwt = require('jsonwebtoken'); // JWT for authentication
 require('dotenv').config();
-const bcrypt = require('bcryptjs');
 const { sendEmailNotification } = require("../mxutils/mxnotify");
 
 router.post('/', async (req, res) => {
@@ -25,22 +24,20 @@ router.post('/', async (req, res) => {
 
         const user = result.rows[0];
 
-// 🔑 Verify password using bcrypt.compare()
-const isMatch = await bcrypt.compare(password, user.password_hash);
-if (!isMatch) {
-    return res.status(401).json({ error: '🚫 Incorrect password' });
-}
+        // 🔑 Verify password using bcrypt.compare()
+        const isMatch = await bcrypt.compare(password, user.password_hash);
+        if (!isMatch) {
+            return res.status(401).json({ error: '🚫 Incorrect password' });
+        }
 
-        // 🎫 Generate JWT Token (FIXED)
+        // 🎫 Generate JWT Token (expires in 7 days)
         const token = jwt.sign(
             { id: user.id, username: user.username }, 
             process.env.JWT_SECRET, 
             { expiresIn: '7d' }
         );
 
-   //     console.log("Generated JWT Token:", token); // 🔥 Debugging: Show JWT
-
-        // ✅ Send only ONE response (Fix ERR_HTTP_HEADERS_SENT)
+        // ✅ Send the token to the user after successful login
         res.status(200).json({ message: "✅ Login successful", token });
 
         // 📩 Send email notification if email exists
