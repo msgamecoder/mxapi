@@ -32,7 +32,7 @@ app._router.stack.forEach((r) => {
 });*/
 
 const mxregister = require('./mxgamecoder/mxroutes/mxregister');
-app.use('/register', mxregister);
+app.use('/mx/register', mxregister);
 
 const mxverify = require('./mxgamecoder/mxroutes/mxverify');
 app.use('/', mxverify);
