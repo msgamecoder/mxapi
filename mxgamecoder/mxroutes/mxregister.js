@@ -44,17 +44,32 @@ router.post('/', async (req, res) => {
             [full_name, username, email, phone_number, passwordHash, location, dob, verificationToken, tokenExpiresAt]
         );
 
-        // 📩 Send Verification Email
-        const verificationLink = `${VERIFICATION_URL}/${verificationToken}`;
-        transporter.sendMail({
-            from: process.env.SMTP_EMAIL,
-            to: email,
-            subject: '🚀 Verify Your Email - MSWORLD',
-            text: `Hello ${username},\n\nClick the link below to verify your email:\n${verificationLink}\n\n✅ MSWORLD Team`
-        }).catch(err => console.error("❌ Email sending failed:", err));
+// 📩 Send Verification Email
+const verificationLink = `${VERIFICATION_URL}/${verificationToken}`;
+transporter.sendMail({
+    from: process.env.SMTP_EMAIL,
+    to: email,
+    subject: '🚀 Verify Your Email - MSWORLD',
+    html: `
+        <div style="font-family: Arial, sans-serif; color: #333; padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; background-color: #f8f8f8;">
+            <h2 style="text-align: center; color: #4CAF50; font-size: 22px;">Welcome to MSWORLD! 🎉</h2>
+            <p style="font-size: 14px; text-align: center;">Hi ${username},</p>
+            <p style="font-size: 14px; text-align: center;">You're almost done! Please verify your email to complete your registration.</p>
+            <p style="text-align: center;">
+                <a href="${verificationLink}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; font-size: 16px; border-radius: 5px;">Verify Your Email</a>
+            </p>
+            <p style="font-size: 12px; color: #777; text-align: center;">This link will expire in 2 minutes. ⏳</p>
+            <p style="font-size: 12px; text-align: center; color: #555;">If you didn’t sign up for MSWORLD, you can ignore this message.</p>
+            <br>
+            <footer style="text-align: center; font-size: 12px; color: #555;">
+                <p>Thanks for joining MSWORLD! 😊</p>
+                <p>- The MSWORLD Team</p>
+            </footer>
+        </div>
+    `
+}).catch(err => console.error("❌ Email sending failed:", err));
 
-        return res.json({ message: '✅ Registration successful! Please check your email for verification.' });
-
+return res.json({ message: '✅ Registration successful! Please check your email for verification. If you didn’t receive it, check your spam folder.' });
     } catch (error) {
         console.error('❌ Registration Error:', error);
         return res.status(500).json({ error: '⚠️ Internal server error. Please try again.' });
