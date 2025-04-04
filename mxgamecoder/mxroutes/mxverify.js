@@ -59,7 +59,7 @@ router.get('/:token', async (req, res) => {
         , user.username).catch(err => console.error("❌ Email failed:", err));
 
         // 🔗 Redirect to login page
-        return res.redirect('http://127.0.0.1:5500/login.html');  // Redirect to the login page
+        return res.redirect('http://127.0.0.1:5500/submit.html');  // Redirect to the login page
 
     } catch (error) {
         console.error('❌ Verification error:', error);
