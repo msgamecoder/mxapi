@@ -50,32 +50,22 @@ router.get('/:token', async (req, res) => {
         // 📩 Send Welcome Email (Run in background for speed)
         sendEmailNotification(user.email, "🎉 Welcome to MSWORLD!", 
             `Hello ${user.username}, <br><br>
-             Your email has been successfully verified. <br>
-             You can now <a href="https://your-msworld-login-page.com">log in</a>. <br><br>
-             🚀 Enjoy using MSWORLD!`,
-            user.username  
-        ).catch(err => console.error("❌ Email failed:", err));
+             Congratulations! 🎉 Your email has been successfully verified. <br><br>
+             You can now <a href="http://127.0.0.1:5500/login.html">log in</a> to access all MSWORLD features! <br><br>
+             🚀 Explore the community, connect with friends, and enjoy the MSWORLD experience. <br><br>
+             If you have any questions or need assistance, don't hesitate to reach out to our support team. We're here to help! <br><br>
+             We’re thrilled to have you on board! 🎉 <br><br>
+             - The MSWORLD Team`
+        , user.username).catch(err => console.error("❌ Email failed:", err));
 
-        // 🔔 Frontend Notification
-        const notification = generateFrontendNotification("success", "🎉 Registration successful! Welcome to MSWORLD.");
-
-        // Return response with user data
-        return res.status(200).json({
-            message: "✅ Email verified successfully! You can now log in.",
-            notification,
-            user: {
-                username: user.username,
-                email: user.email,
-                phone_number: user.phone_number,
-                location: user.location,
-                profile_picture: defaultAvatar // Including the default avatar path here
-            },
-        });
+        // 🔗 Redirect to login page
+        return res.redirect('http://127.0.0.1:5500/login.html');  // Redirect to the login page
 
     } catch (error) {
         console.error('❌ Verification error:', error);
         res.status(500).json({ error: "⚠️ Internal server error." });
     }
 });
+
 
 module.exports = router;
