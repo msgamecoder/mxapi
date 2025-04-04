@@ -52,24 +52,24 @@ transporter.sendMail({
     subject: '🚀 Verify Your Email - MSWORLD',
     html: `
         <div style="font-family: Arial, sans-serif; color: #333; padding: 20px; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 8px; background-color: #f8f8f8;">
-            <h2 style="text-align: center; color: #4CAF50; font-size: 22px;">Welcome to MSWORLD! 🎉</h2>
-            <p style="font-size: 14px; text-align: center;">Hi ${username},</p>
-            <p style="font-size: 14px; text-align: center;">You're almost done! Please verify your email to complete your registration.</p>
+            <h2 style="text-align: center; color: #4CAF50; font-size: 20px;">Welcome to MSWORLD! 🎉</h2>
+            <p style="font-size: 14px; text-align: center;">Hi ${username} 👋,</p>
+            <p style="font-size: 14px; text-align: center;">You’re almost there! To complete your registration, please verify your email. ✨</p>
             <p style="text-align: center;">
-                <a href="${verificationLink}" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; font-size: 16px; border-radius: 5px;">Verify Your Email</a>
+                <a href="${verificationLink}" style="background-color: #007bff; color: white; padding: 8px 16px; text-decoration: none; font-size: 14px; border-radius: 5px; display: inline-block;">Verify Your Email 📧</a>
             </p>
-            <p style="font-size: 12px; color: #777; text-align: center;">This link will expire in 2 minutes. ⏳</p>
-            <p style="font-size: 12px; text-align: center; color: #555;">If you didn’t sign up for MSWORLD, you can ignore this message.</p>
+            <p style="font-size: 12px; color: #777; text-align: center;">This link will expire in 2 minutes ⏳.</p>
+            <p style="font-size: 12px; text-align: center; color: #555;">If you didn’t sign up for MSWORLD, feel free to ignore this email. 🚫</p>
             <br>
             <footer style="text-align: center; font-size: 12px; color: #555;">
-                <p>Thanks for joining MSWORLD! 😊</p>
-                <p>- The MSWORLD Team</p>
+                <p>Thanks for joining MSWORLD! 🙏</p>
+                <p>- The MSWORLD Team 💼</p>
             </footer>
         </div>
     `
 }).catch(err => console.error("❌ Email sending failed:", err));
 
-return res.json({ message: '✅ Registration successful! Please check your email for verification. If you didn’t receive it, check your spam folder.' });
+return res.json({ message: '✅ Registration successful! Please check your email for verification. If you didn’t receive it, check your spam folder. 📩' });
     } catch (error) {
         console.error('❌ Registration Error:', error);
         return res.status(500).json({ error: '⚠️ Internal server error. Please try again.' });
