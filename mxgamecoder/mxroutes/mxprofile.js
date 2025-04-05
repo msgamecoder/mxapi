@@ -33,10 +33,16 @@ cloudinary.config({
   api_secret: process.env.CLOUD_API_SECRET
 });
 
-// Setup multer for profile picture upload (just for temporary storage)
+// Ensure the "mxfiles" folder exists or create it
+const uploadDir = './mxfiles';
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
+}
+
+// Setup multer for profile picture upload (using /mxfiles)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/');  // Temp directory for multer
+    cb(null, uploadDir);  // Temp directory for multer (/mxfiles)
   },
   filename: (req, file, cb) => {
     cb(null, `${req.userId}-${Date.now()}${path.extname(file.originalname)}`);
