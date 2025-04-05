@@ -103,42 +103,4 @@ router.put("/profile", verifyToken, upload.single("profile_picture"), async (req
   }
 });
 
-// Route to fetch profile picture
-// Route to fetch profile picture
-router.get("/mspicture", verifyToken, async (req, res) => {
-  try {
-    const { userId } = req;
-
-    // Query to get the profile picture filename from the database
-    const query = "SELECT profile_picture FROM users WHERE id = $1";
-    const result = await mxdatabase.query(query, [userId]);
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const profilePicturePath = result.rows[0].profile_picture;
-
-    if (!profilePicturePath || profilePicturePath === '/mxfiles/avatar.png') {
-      return res.status(404).json({ message: "Profile picture not found" });
-    }
-
-    // Extract the file name from the path
-    const filename = profilePicturePath.split('/mxfiles/')[1];
-    const filePath = path.join(__dirname, '..', '..', 'mxfiles', filename); // Absolute path to mxfiles directory
-
-    // Check if the profile picture exists in the "mxfiles" folder
-    if (fs.existsSync(filePath)) {
-      return res.sendFile(filePath); // Send the file as a response
-    } else {
-      return res.status(404).json({ message: "Profile picture not found on the server" });
-    }
-  } catch (error) {
-    console.error("Error fetching profile picture:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-
-
 module.exports = router;
