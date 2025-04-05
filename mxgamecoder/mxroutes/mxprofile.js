@@ -55,23 +55,12 @@ router.get("/profile", verifyToken, async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const profile = result.rows[0];
-    const profilePicturePath = profile.profile_picture ? `./mxfiles${profile.profile_picture}` : null;
-
-    // Check if the profile picture exists in the mxfiles folder
-    if (profilePicturePath && fs.existsSync(profilePicturePath)) {
-      profile.profile_picture = `https://mxapi.onrender.com${profile.profile_picture}`;
-    } else {
-      profile.profile_picture = null; // Set to null or a default image if the file doesn't exist
-    }
-
-    res.status(200).json(profile);
+    res.status(200).json(result.rows[0]);
   } catch (error) {
     console.error("Error fetching profile:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
-
 
 // Update user profile including profile picture
 router.put("/profile", verifyToken, upload.single("profile_picture"), async (req, res) => {
@@ -113,5 +102,41 @@ router.put("/profile", verifyToken, upload.single("profile_picture"), async (req
     res.status(500).json({ message: "Server error" });
   }
 });
+
+// Route to fetch profile picture
+router.get("/mspicture", verifyToken, async (req, res) => {
+  try {
+    const { userId } = req;
+
+    // Query to get the profile picture filename from the database
+    const query = "SELECT profile_picture FROM users WHERE id = $1";
+    const result = await mxdatabase.query(query, [userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const profilePicturePath = result.rows[0].profile_picture;
+
+    if (!profilePicturePath || profilePicturePath === '/mxfiles/avatar.png') {
+      return res.status(404).json({ message: "Profile picture not found" });
+    }
+
+    // Extract the file name from the path
+    const filename = profilePicturePath.split('/mxfiles/')[1];
+    const filePath = path.join(uploadDir, filename);
+
+    // Check if the profile picture exists in the "mxfiles" folder
+    if (fs.existsSync(filePath)) {
+      return res.sendFile(filePath); // Send the file as a response
+    } else {
+      return res.status(404).json({ message: "Profile picture not found on the server" });
+    }
+  } catch (error) {
+    console.error("Error fetching profile picture:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 
 module.exports = router;
