@@ -1,3 +1,5 @@
+const express = require("express");
+const router = express.Router();
 const nodemailer = require("nodemailer");
 const fs = require("fs");
 const path = require("path");
@@ -14,22 +16,24 @@ if (!fs.existsSync(NOTIFICATION_DIR)) {
 // 🛑 Prevent email spam (2-minute cooldown per user)
 const emailCooldown = new Map();
 
-const sendEmailNotification = async (userEmail, subject, message, username) => {
+// Route to send email notifications and log them
+router.post("/send-notification", async (req, res) => {
+  const { userEmail, subject, message, username } = req.body;
+
   try {
     const now = Date.now();
     if (emailCooldown.has(userEmail)) {
       const lastSent = emailCooldown.get(userEmail);
       if (now - lastSent < 1 * 60 * 1000) {
         console.log("⏳ Email not sent (cooldown active)");
-        return;
+        return res.status(400).json({ message: "Cooldown active, try again later." });
       }
     }
     emailCooldown.set(userEmail, now);
 
     // 🔥 Sanitize username
     if (!username) {
-      console.error("❌ Error: Username is undefined. Cannot create user folder.");
-      return;
+      return res.status(400).json({ message: "Username is required." });
     }
     const safeUsername = sanitizeFilename(username);
     const userFolder = path.join(NOTIFICATION_DIR, safeUsername);
@@ -76,20 +80,56 @@ const sendEmailNotification = async (userEmail, subject, message, username) => {
         "X-Priority": "1 (Highest)",
         "X-MSMail-Priority": "High",
         "Importance": "High",
-        "List-Unsubscribe": `<mailto:${process.env.SMTP_EMAIL}?subject=unsubscribe>`, // 🔥 Reduces spam flagging
+        "List-Unsubscribe": `<mailto:${process.env.SMTP_EMAIL}?subject=unsubscribe>`,
       },
     };
 
     // 🔥 Send email
     await transporter.sendMail(mailOptions);
     console.log(`📩 Email sent to ${userEmail}: ${subject}`);
+    res.status(200).json({ message: "Notification sent successfully." });
+
   } catch (error) {
     console.error("❌ Email notification error:", error);
+    res.status(500).json({ message: "Error sending notification." });
   }
-};
+});
 
-const generateFrontendNotification = (type, message) => {
-  return { type, message };
-};
+// Endpoint for frontend to receive notifications (for example, show in UI)
+// Endpoint for frontend to receive notifications with full content
+router.get("/notifications/:username", (req, res) => {
+  const { username } = req.params;
+  const safeUsername = sanitizeFilename(username);
+  const userFolder = path.join(NOTIFICATION_DIR, safeUsername);
 
-module.exports = { sendEmailNotification, generateFrontendNotification };
+  if (!fs.existsSync(userFolder)) {
+    return res.status(404).json({ message: "No notifications found for this user." });
+  }
+
+  // 🔥 Read all notification files
+  const notificationFiles = fs.readdirSync(userFolder);
+
+  const notifications = notificationFiles.map((file) => {
+    const filePath = path.join(userFolder, file);
+    const content = fs.readFileSync(filePath, "utf-8");
+
+    const subjectMatch = content.match(/Subject:\s*(.+)/);
+    const messageMatch = content.match(/Message:\s*(.+)/);
+    const timeMatch = content.match(/Time:\s*(.+)/);
+
+    return {
+      filename: file,
+      title: subjectMatch ? subjectMatch[1] : "No Subject",
+      message: messageMatch ? messageMatch[1] : "No Message",
+      time: timeMatch ? timeMatch[1] : "No Time",
+    };
+  });
+
+  // Optional: sort by newest first
+  notifications.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+  res.status(200).json({ notifications });
+});
+
+
+module.exports = router;
