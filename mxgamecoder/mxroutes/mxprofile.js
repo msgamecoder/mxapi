@@ -104,6 +104,7 @@ router.put("/profile", verifyToken, upload.single("profile_picture"), async (req
 });
 
 // Route to fetch profile picture
+// Route to fetch profile picture
 router.get("/mspicture", verifyToken, async (req, res) => {
   try {
     const { userId } = req;
@@ -124,7 +125,7 @@ router.get("/mspicture", verifyToken, async (req, res) => {
 
     // Extract the file name from the path
     const filename = profilePicturePath.split('/mxfiles/')[1];
-    const filePath = path.join(uploadDir, filename);
+    const filePath = path.join(__dirname, '..', '..', 'mxfiles', filename); // Absolute path to mxfiles directory
 
     // Check if the profile picture exists in the "mxfiles" folder
     if (fs.existsSync(filePath)) {
@@ -137,6 +138,7 @@ router.get("/mspicture", verifyToken, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 
 module.exports = router;
