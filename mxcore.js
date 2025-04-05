@@ -52,6 +52,9 @@ app.use("/mx", profileRoutes);
 const mxfilemanager = require("./mxgamecoder/mxroutes/mxfilemanager");
 app.use("/mx", mxfilemanager);
 
+const mxnotify = require("./mxgamecoder/mxutils/mxnotify"); // Add this to include your notification handler
+app.use("/mx", mxnotify); // Use this to add it under the /mx path
+
 // Start Server
 app.listen(PORT, async () => {
     try {
