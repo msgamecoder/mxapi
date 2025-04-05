@@ -5,6 +5,8 @@ const mxdatabase = require("../mxconfig/mxdatabase");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const cloudinary = require('cloudinary').v2;
+require('dotenv').config();
 
 // Middleware to verify JWT and extract user ID
 function verifyToken(req, res, next) {
@@ -24,16 +26,17 @@ function verifyToken(req, res, next) {
   });
 }
 
-// Ensure the "mxfiles" folder exists or create it
-const uploadDir = "./mxfiles";
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.CLOUD_API_KEY,
+  api_secret: process.env.CLOUD_API_SECRET
+});
 
-// Setup multer for profile picture upload
+// Setup multer for profile picture upload (just for temporary storage)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir); // Folder to store images
+    cb(null, 'uploads/');  // Temp directory for multer
   },
   filename: (req, file, cb) => {
     cb(null, `${req.userId}-${Date.now()}${path.extname(file.originalname)}`);
@@ -52,14 +55,10 @@ router.get("/profile", verifyToken, async (req, res) => {
     const result = await mxdatabase.query(query, [userId]);
 
     if (result.rows.length === 0) {
-      console.log(`User not found: ${userId}`);  // Log if user is not found
       return res.status(404).json({ message: "User not found" });
     }
 
-    const userProfile = result.rows[0];
-    console.log("User profile fetched:", userProfile);  // Log the fetched profile data
-
-    res.status(200).json(userProfile);
+    res.status(200).json(result.rows[0]);
   } catch (error) {
     console.error("Error fetching profile:", error);
     res.status(500).json({ message: "Server error" });
@@ -71,15 +70,17 @@ router.put("/profile", verifyToken, upload.single("profile_picture"), async (req
   try {
     const { userId } = req;
     const { username, phone, location, bio } = req.body;
-
-    // Log the incoming data for debugging
-    console.log("Incoming request data:", { username, phone, location, bio });
-    console.log("Uploaded profile picture:", req.file ? req.file.filename : "No file");
-
-    const profile_picture = req.file ? `/mxfiles/${req.file.filename}` : null;
+    const profile_picture = req.file ? req.file.path : null;
 
     if (!username || !phone || !location || !bio) {
       return res.status(400).json({ message: "All fields are required" });
+    }
+
+    // If there's a file, upload it to Cloudinary
+    let cloudinaryUrl = '/mxfiles/avatar.png'; // Default avatar
+    if (profile_picture) {
+      const result = await cloudinary.uploader.upload(profile_picture);
+      cloudinaryUrl = result.secure_url; // The URL returned by Cloudinary
     }
 
     const updateQuery = `
@@ -94,21 +95,17 @@ router.put("/profile", verifyToken, upload.single("profile_picture"), async (req
       phone,
       location,
       bio,
-      profile_picture || '/mxfiles/avatar.png', // Default avatar if no new picture
+      cloudinaryUrl, // Save the Cloudinary URL in the database
       userId,
     ]);
 
     if (result.rows.length === 0) {
-      console.log(`User not found during update: ${userId}`);  // Log if user is not found during update
       return res.status(404).json({ message: "User not found" });
     }
 
-    const updatedUser = result.rows[0];
-    console.log("Profile updated:", updatedUser);  // Log the updated user data
-
     res.status(200).json({
       message: "Profile updated successfully",
-      user: updatedUser,
+      user: result.rows[0],
     });
   } catch (error) {
     console.error("Error updating profile:", error);
