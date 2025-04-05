@@ -55,12 +55,23 @@ router.get("/profile", verifyToken, async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.status(200).json(result.rows[0]);
+    const profile = result.rows[0];
+    const profilePicturePath = profile.profile_picture ? `./mxfiles${profile.profile_picture}` : null;
+
+    // Check if the profile picture exists in the mxfiles folder
+    if (profilePicturePath && fs.existsSync(profilePicturePath)) {
+      profile.profile_picture = `https://mxapi.onrender.com${profile.profile_picture}`;
+    } else {
+      profile.profile_picture = null; // Set to null or a default image if the file doesn't exist
+    }
+
+    res.status(200).json(profile);
   } catch (error) {
     console.error("Error fetching profile:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 // Update user profile including profile picture
 router.put("/profile", verifyToken, upload.single("profile_picture"), async (req, res) => {
