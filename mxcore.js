@@ -1,8 +1,8 @@
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const pool = require('./mxgamecoder/mxconfig/mxdatabase');
+const path = require('path');  // Add this line for path module
 require("dotenv").config();
 
 const app = express();
@@ -13,6 +13,9 @@ app.use(cors()); // Allow frontend to communicate with backend
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Serve static files (images) from the "mxfiles" folder
+app.use('/mxfiles', express.static(path.join(__dirname, 'mxfiles')));
+
 // Test API Route
 app.get('/', (req, res) => {
     res.send('🔥 MXWorld API is running!');
@@ -21,15 +24,6 @@ app.get('/', (req, res) => {
 // Routes
 const mxcheck = require('./mxgamecoder/mxroutes/mxcheck'); // ✅ Ensure correct path
 app.use('/api/check', mxcheck);
-
-
-/*// Username, email, phone check route
-console.log('🔍 Available routes:');
-app._router.stack.forEach((r) => {
-    if (r.route && r.route.path) {
-        console.log(`👉 ${r.route.path}`);
-    }
-});*/
 
 const mxregister = require('./mxgamecoder/mxroutes/mxregister');
 app.use('/mx/register', mxregister);
