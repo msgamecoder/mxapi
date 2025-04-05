@@ -52,10 +52,14 @@ router.get("/profile", verifyToken, async (req, res) => {
     const result = await mxdatabase.query(query, [userId]);
 
     if (result.rows.length === 0) {
+      console.log(`User not found: ${userId}`);  // Log if user is not found
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.status(200).json(result.rows[0]);
+    const userProfile = result.rows[0];
+    console.log("User profile fetched:", userProfile);  // Log the fetched profile data
+
+    res.status(200).json(userProfile);
   } catch (error) {
     console.error("Error fetching profile:", error);
     res.status(500).json({ message: "Server error" });
@@ -67,6 +71,11 @@ router.put("/profile", verifyToken, upload.single("profile_picture"), async (req
   try {
     const { userId } = req;
     const { username, phone, location, bio } = req.body;
+
+    // Log the incoming data for debugging
+    console.log("Incoming request data:", { username, phone, location, bio });
+    console.log("Uploaded profile picture:", req.file ? req.file.filename : "No file");
+
     const profile_picture = req.file ? `/mxfiles/${req.file.filename}` : null;
 
     if (!username || !phone || !location || !bio) {
@@ -90,12 +99,16 @@ router.put("/profile", verifyToken, upload.single("profile_picture"), async (req
     ]);
 
     if (result.rows.length === 0) {
+      console.log(`User not found during update: ${userId}`);  // Log if user is not found during update
       return res.status(404).json({ message: "User not found" });
     }
 
+    const updatedUser = result.rows[0];
+    console.log("Profile updated:", updatedUser);  // Log the updated user data
+
     res.status(200).json({
       message: "Profile updated successfully",
-      user: result.rows[0],
+      user: updatedUser,
     });
   } catch (error) {
     console.error("Error updating profile:", error);
