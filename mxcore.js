@@ -61,8 +61,8 @@ app.use("/mx", mxfilemanager);
 const mxnotify = require("./mxgamecoder/mxutils/mxnotify");
 app.use("/mx", mxnotify);
 
-const mxnotifyRoutes = require("../mxgamecoder/mxutils/mxnotifyRoutes");
-app.use("/mx/notifications/", mxnotifyRoutes);
+const mxnotifyRoutes = require("./mxgamecoder/mxutils/mxnotifyRoutes");
+app.use("/mx/notifications", mxnotifyRoutes);
 
 
 // Start Server
