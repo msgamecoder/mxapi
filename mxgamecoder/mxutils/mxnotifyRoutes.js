@@ -1,3 +1,5 @@
+// mxgamecoder/mxutils/mxnotifyRoutes.js
+
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
@@ -49,7 +51,7 @@ router.get("/:username", (req, res) => {
 });
 
 // Mark notifications as read
-router.put("/notifications/read/:username", (req, res) => {
+router.put("/read/:username", (req, res) => { // Fixed: Removed the extra /notifications part
   const { username } = req.params;
   const safeUsername = sanitizeFilename(username);
   const userFolder = path.join(NOTIFICATION_DIR, safeUsername);
