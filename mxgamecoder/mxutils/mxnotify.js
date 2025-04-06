@@ -11,9 +11,30 @@ if (!fs.existsSync(NOTIFICATION_DIR)) {
   fs.mkdirSync(NOTIFICATION_DIR, { recursive: true });
 }
 
-// 🛑 Prevent email spam (2-minute cooldown per user)
+// 🛑 Prevent email spam (1-minute cooldown per user)
 const emailCooldown = new Map();
 
+// Get the JSON file for the user's notifications
+function getUserNotificationFile(username) {
+  const safeUsername = sanitizeFilename(username);
+  const userFile = path.join(NOTIFICATION_DIR, `${safeUsername}_notifications.json`);
+
+  if (!fs.existsSync(userFile)) {
+    fs.writeFileSync(userFile, JSON.stringify({ notifications: [] }));
+  }
+
+  return userFile;
+}
+
+// Save or update notification JSON
+function saveNotificationToJson(username, notification) {
+  const userFile = getUserNotificationFile(username);
+  const data = JSON.parse(fs.readFileSync(userFile, "utf-8"));
+  data.notifications.push(notification);
+  fs.writeFileSync(userFile, JSON.stringify(data, null, 2));
+}
+
+// MAIN FUNCTION TO SEND EMAIL AND LOG NOTIFICATION
 const sendEmailNotification = async (userEmail, subject, message, username) => {
   try {
     const now = Date.now();
@@ -26,44 +47,48 @@ const sendEmailNotification = async (userEmail, subject, message, username) => {
     }
     emailCooldown.set(userEmail, now);
 
-    // 🔥 Sanitize username
-    if (!username) {
-      console.error("❌ Error: Username is undefined. Cannot create user folder.");
-      return;
-    }
+    // 🔐 Safe username and paths
     const safeUsername = sanitizeFilename(username);
     const userFolder = path.join(NOTIFICATION_DIR, safeUsername);
 
-    // 🔥 Create user folder if it doesn't exist
     if (!fs.existsSync(userFolder)) {
       fs.mkdirSync(userFolder, { recursive: true });
     }
 
-    // 🔥 Save notification log with timestamp
     const timestamp = new Date().toISOString().replace(/:/g, "-");
-    const logFile = path.join(userFolder, `${timestamp}.txt`);
+    const filename = `${timestamp}.txt`;
+    const logFile = path.join(userFolder, filename);
     const logMessage = `📩 Email sent to: ${userEmail}\nSubject: ${subject}\nMessage: ${message}\nTime: ${new Date().toLocaleString()}\n\n`;
 
+    // 🔥 Save TXT version
     fs.appendFileSync(logFile, logMessage);
     console.log(`📄 Notification saved: ${logFile}`);
 
-    // 🔥 Secure Email Setup (Avoid Spam)
+    // 🔥 Save JSON version
+    const notification = {
+      title: subject,
+      message: message,
+      time: new Date().toLocaleString(),
+      read: false,
+      filename: filename
+    };
+    saveNotificationToJson(username, notification);
+
+    // 🔐 Send email using Gmail
     let transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
         user: process.env.SMTP_EMAIL,
         pass: process.env.SMTP_PASSWORD,
       },
-      secure: true, // 🔥 Forces SSL/TLS for better security
+      secure: true,
       tls: {
-        rejectUnauthorized: false, // 🔥 Prevents TLS issues (use only if needed)
+        rejectUnauthorized: false,
       },
     });
 
-    // 🔥 Email options with proper headers
-    let mailOptions = {
+    const mailOptions = {
       from: `"MSWORLD Support" <${process.env.SMTP_EMAIL}>`,
-      replyTo: process.env.SMTP_REPLYTO || process.env.SMTP_EMAIL,
       to: userEmail,
       subject: subject,
       html: `<div style="font-family: Arial, sans-serif; padding: 10px; background: #f4f4f4; border-radius: 5px;">
@@ -76,11 +101,9 @@ const sendEmailNotification = async (userEmail, subject, message, username) => {
         "X-Priority": "1 (Highest)",
         "X-MSMail-Priority": "High",
         "Importance": "High",
-        "List-Unsubscribe": `<mailto:${process.env.SMTP_EMAIL}?subject=unsubscribe>`, // 🔥 Reduces spam flagging
       },
     };
 
-    // 🔥 Send email
     await transporter.sendMail(mailOptions);
     console.log(`📩 Email sent to ${userEmail}: ${subject}`);
   } catch (error) {

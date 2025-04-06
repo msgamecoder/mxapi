@@ -30,7 +30,7 @@ router.post("/forgot-password", async (req, res) => {
     );
 
     // Generate Reset Link
-    const resetLink = `https://mxapi.onrender.com/mx/reset-password?token=${token}`;
+    const resetLink = `http://localhost:5000/mx/reset-password?token=${token}`;
 
     // 📩 Send email notification
     sendEmailNotification(

@@ -3,10 +3,9 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const mxdatabase = require("../mxconfig/mxdatabase");
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
-const cloudinary = require('cloudinary').v2;
-require('dotenv').config();
+const cloudinary = require("cloudinary").v2;
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+require("dotenv").config();
 
 // Middleware to verify JWT and extract user ID
 function verifyToken(req, res, next) {
@@ -30,22 +29,15 @@ function verifyToken(req, res, next) {
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
   api_key: process.env.CLOUD_API_KEY,
-  api_secret: process.env.CLOUD_API_SECRET
+  api_secret: process.env.CLOUD_API_SECRET,
 });
 
-// Ensure the "mxfiles" folder exists or create it
-const uploadDir = './mxfiles';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-
-// Setup multer for profile picture upload (using /mxfiles)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);  // Temp directory for multer (/mxfiles)
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${req.userId}-${Date.now()}${path.extname(file.originalname)}`);
+// Setup multer with Cloudinary Storage
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "profile_pictures", // Optional folder name in Cloudinary
+    allowedFormats: ["jpg", "jpeg", "png"],
   },
 });
 
@@ -76,17 +68,14 @@ router.put("/profile", verifyToken, upload.single("profile_picture"), async (req
   try {
     const { userId } = req;
     const { username, phone, location, bio } = req.body;
-    const profile_picture = req.file ? req.file.path : null;
 
     if (!username || !phone || !location || !bio) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    // If there's a file, upload it to Cloudinary
-    let cloudinaryUrl = '/mxfiles/avatar.png'; // Default avatar
-    if (profile_picture) {
-      const result = await cloudinary.uploader.upload(profile_picture);
-      cloudinaryUrl = result.secure_url; // The URL returned by Cloudinary
+    let cloudinaryUrl = "/mxfiles/avatar.png"; // Default avatar
+    if (req.file) {
+      cloudinaryUrl = req.file.path; // The URL returned by Cloudinary after uploading the file
     }
 
     const updateQuery = `
@@ -101,7 +90,7 @@ router.put("/profile", verifyToken, upload.single("profile_picture"), async (req
       phone,
       location,
       bio,
-      cloudinaryUrl, // Save the Cloudinary URL in the database
+      cloudinaryUrl, // Cloudinary URL saved in the database
       userId,
     ]);
 
