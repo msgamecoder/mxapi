@@ -50,38 +50,46 @@ router.get("/:username", (req, res) => {
   res.status(200).json({ notifications });
 });
 
-// Mark notifications as read
-router.put("/read/:username", (req, res) => { // Fixed: Removed the extra /notifications part
+// Mark notifications as read and prevent re-editing
+router.put("/read/:username", (req, res) => {
   const { username } = req.params;
   const safeUsername = sanitizeFilename(username);
   const userFolder = path.join(NOTIFICATION_DIR, safeUsername);
 
   if (!fs.existsSync(userFolder)) {
-    return res.status(404).json({ message: "No notifications found." });
+      return res.status(404).json({ message: "No notifications found." });
   }
 
   const files = fs.readdirSync(userFolder);
   const notifications = files.map((file) => {
-    const content = fs.readFileSync(path.join(userFolder, file), "utf-8");
-    const subject = content.match(/Subject:\s*(.+)/)?.[1] || "No Subject";
-    const message = content.match(/Message:\s*(.+)/)?.[1] || "No Message";
-    const time = content.match(/Time:\s*(.+)/)?.[1] || "No Time";
+      const content = fs.readFileSync(path.join(userFolder, file), "utf-8");
+      const subject = content.match(/Subject:\s*(.+)/)?.[1] || "No Subject";
+      const message = content.match(/Message:\s*(.+)/)?.[1] || "No Message";
+      const time = content.match(/Time:\s*(.+)/)?.[1] || "No Time";
+      const readFlag = content.match(/Read:\s*(.+)/)?.[1] || "false"; // Check if already marked as read
 
-    return { filename: file, title: subject, message, time };
+      return { filename: file, title: subject, message, time, readFlag };
   });
 
-  // Count unread notifications
-  const unreadNotifications = notifications.filter((notification) => !notification.read);
-  
-  // Mark the notifications as read
-  notifications.forEach((notification) => {
-    const notificationFilePath = path.join(userFolder, notification.filename);
-    const updatedContent = fs.readFileSync(notificationFilePath, "utf-8").replace(/(📩.*?)/g, "📩 Read");
-    fs.writeFileSync(notificationFilePath, updatedContent); // Mark as read
+  // Filter out notifications that are already marked as read
+  const unreadNotifications = notifications.filter((notification) => notification.readFlag === "false");
+
+  if (unreadNotifications.length === 0) {
+      return res.status(200).json({ message: "All notifications are already marked as read." });
+  }
+
+  // Mark notifications as read by adding "Read: true" flag to the file content
+  unreadNotifications.forEach((notification) => {
+      const notificationFilePath = path.join(userFolder, notification.filename);
+      let updatedContent = fs.readFileSync(notificationFilePath, "utf-8");
+
+      // Ensure the file content is updated to mark as read
+      updatedContent = updatedContent.replace(/Read:\s*false/g, "Read: true");
+      fs.writeFileSync(notificationFilePath, updatedContent); // Write the updated content
   });
 
-  // Send the count of unread notifications
-  res.status(200).json({ message: "Notifications marked as read.", unreadCount: unreadNotifications.length });
+  res.status(200).json({ message: "Notifications marked as read." });
 });
+
 
 module.exports = router;
