@@ -68,7 +68,7 @@ router.put("/notifications/read/:username", (req, res) => {
     return { filename: file, title: subject, message, time };
   });
 
-  // Mark the notifications as read (you can store this in a database or just change the content)
+  // Mark the notifications as read
   notifications.forEach((notification) => {
     const notificationFilePath = path.join(userFolder, notification.filename);
     const updatedContent = fs.readFileSync(notificationFilePath, "utf-8").replace(/(📩.*?)/g, "📩 Read");
