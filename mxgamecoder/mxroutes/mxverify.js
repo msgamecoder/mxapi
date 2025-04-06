@@ -51,7 +51,7 @@ router.get('/:token', async (req, res) => {
         sendEmailNotification(user.email, "🎉 Welcome to MSWORLD!", 
             `Hello ${user.username}, <br><br>
              Congratulations! 🎉 Your email has been successfully verified. <br><br>
-             You can now <a href="http://127.0.0.1:5500/login.html">log in</a> to access all MSWORLD features! <br><br>
+             You can now <a href="https://mxgamecoder.lovestoblog.com/login.html">log in</a> to access all MSWORLD features! <br><br>
              🚀 Explore the community, connect with friends, and enjoy the MSWORLD experience. <br><br>
              If you have any questions or need assistance, don't hesitate to reach out to our support team. We're here to help! <br><br>
              We’re thrilled to have you on board! 🎉 <br><br>
@@ -59,7 +59,7 @@ router.get('/:token', async (req, res) => {
         , user.username).catch(err => console.error("❌ Email failed:", err));
 
         // 🔗 Redirect to login page
-        return res.redirect('http://127.0.0.1:5500/submit.html');  // Redirect to the login page
+        return res.redirect('https://mxgamecoder.lovestoblog.com/submit.html');  // Redirect to the login page
 
     } catch (error) {
         console.error('❌ Verification error:', error);
