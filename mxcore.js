@@ -58,9 +58,6 @@ app.use("/mx", profileRoutes);
 const mxfilemanager = require("./mxgamecoder/mxroutes/mxfilemanager");
 app.use("/mx", mxfilemanager);
 
-const mxnotify = require("./mxgamecoder/mxutils/mxnotify");
-app.use("/mx", mxnotify);
-
 const mxnotifyRoutes = require("./mxgamecoder/mxutils/mxnotifyRoutes");
 app.use("/mx/notifications", mxnotifyRoutes);
 
