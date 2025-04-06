@@ -2,7 +2,7 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const sanitizeFilename = require("sanitize-filename");
-const { sendEmailNotification } = require("../mxconfig/mxnotify");
+const { sendEmailNotification } = require("../mxutils/mxnotify");
 
 const router = express.Router();
 const NOTIFICATION_DIR = path.join(__dirname, "../mxgamecodernot");
