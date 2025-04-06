@@ -68,6 +68,9 @@ router.put("/notifications/read/:username", (req, res) => {
     return { filename: file, title: subject, message, time };
   });
 
+  // Count unread notifications
+  const unreadNotifications = notifications.filter((notification) => !notification.read);
+  
   // Mark the notifications as read
   notifications.forEach((notification) => {
     const notificationFilePath = path.join(userFolder, notification.filename);
@@ -75,7 +78,8 @@ router.put("/notifications/read/:username", (req, res) => {
     fs.writeFileSync(notificationFilePath, updatedContent); // Mark as read
   });
 
-  res.status(200).json({ message: "Notifications marked as read." });
+  // Send the count of unread notifications
+  res.status(200).json({ message: "Notifications marked as read.", unreadCount: unreadNotifications.length });
 });
 
 module.exports = router;
