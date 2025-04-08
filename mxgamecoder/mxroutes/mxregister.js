@@ -58,7 +58,7 @@ transporter.sendMail({
             <p style="text-align: center;">
                 <a href="${verificationLink}" style="background-color: #007bff; color: white; padding: 8px 16px; text-decoration: none; font-size: 14px; border-radius: 5px; display: inline-block;">Verify Your Email 📧</a>
             </p>
-            <p style="font-size: 12px; color: #777; text-align: center;">This link will expire in 2 minutes ⏳.</p>
+            <p style="font-size: 12px; color: #777; text-align: center;">This link will expire in 15 minutes ⏳.</p>
             <p style="font-size: 12px; text-align: center; color: #555;">If you didn’t sign up for MSWORLD, feel free to ignore this email. 🚫</p>
             <br>
             <footer style="text-align: center; font-size: 12px; color: #555;">
