@@ -5,8 +5,8 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 require("dotenv").config();
 
-// 📩 SEND RESET EMAIL (Personal Business 😅)
-async function sendForgotPasswordEmail(to, username, link) {
+// 📩 Send Reset Email (Independent & Spam-Free)
+async function sendForgotPasswordEmail(to, username, resetLink) {
   const transporter = nodemailer.createTransport({
     service: "Gmail",
     auth: {
@@ -16,16 +16,27 @@ async function sendForgotPasswordEmail(to, username, link) {
   });
 
   const mailOptions = {
-    from: `"MSWORLD Support" <${process.env.SMTP_EMAIL}>`,
-    to: email,
-    subject: "Reset Your MSWORLD Password",
-    text: `You requested a password reset. Click the link: ${resetLink}`,
+    from: `"MSWORLD Support 🚨" <${process.env.SMTP_EMAIL}>`,
+    to,
+    subject: "🔐 Reset Your MSWORLD Password",
+    headers: {
+      "X-Priority": "1",
+      "X-MSMail-Priority": "High",
+      Importance: "High",
+    },
     html: `
-      <p>You requested a password reset. Click the link below:</p>
-      <a href="${resetLink}" style="color:blue;">Reset Password</a>
-      <p>This link will expire in 15 minutes.</p>
+      <div style="font-family:sans-serif;">
+        <h2>Hello ${username} 👋,</h2>
+        <p>You requested a password reset. Click the link below:</p>
+        <a href="${resetLink}" style="background-color:#007bff;color:white;padding:10px 20px;border-radius:5px;text-decoration:none;">
+          Reset Password
+        </a>
+        <p style="margin-top:20px;">This link will expire in 15 minutes.</p>
+        <hr>
+        <small>If you didn't request this, you can ignore this email.</small>
+      </div>
     `,
-  };  
+  };
 
   await transporter.sendMail(mailOptions);
 }
@@ -61,12 +72,12 @@ router.post("/forgot-password", async (req, res) => {
     res.status(200).json({ message: "✅ Reset link sent to your email" });
 
   } catch (error) {
-    console.error("❌ Error:", error);
+    console.error("❌ Error:", error.message);
     res.status(500).json({ message: "❌ Server error" });
   }
 });
 
-// 🌐 Optional: Check if token is valid
+// ✅ Optional token check
 router.get("/check-token", (req, res) => {
   const { token } = req.query;
   try {
