@@ -22,11 +22,11 @@ router.get('/:token', async (req, res) => {
 
         const user = result.rows[0];
 
-        // ⏳ Check if token expired with a small buffer (5 minutes)
-        const expirationBuffer = 5 * 60 * 1000; // 5 minutes buffer
-        if (new Date(user.token_expires_at) + expirationBuffer < new Date()) {
-            return res.status(400).json({ error: "⏳ Token expired. Please register again." });
-        }
+       // ⏳ Check if token expired with a small buffer (15 minutes)
+const expirationBuffer = 15 * 60 * 1000; // 15 minutes buffer
+if (new Date(user.token_expires_at) + expirationBuffer < new Date()) {
+    return res.status(400).json({ error: "⏳ Token expired. Please register again." });
+}
 
         // 🔍 Check if the email or username is already registered
         const existingUser = await pool.query(
