@@ -7,7 +7,7 @@ const path = require("path");
 const nodemailer = require("nodemailer");
 require("dotenv").config();
 
-// 📩 SEND RESET CONFIRMATION EMAIL
+// 📩 Send Confirmation Email (Independent & Optimized)
 async function sendResetConfirmationEmail(to, username) {
   const transporter = nodemailer.createTransport({
     service: "Gmail",
@@ -18,25 +18,34 @@ async function sendResetConfirmationEmail(to, username) {
   });
 
   const mailOptions = {
-    from: `"MSWORLD Security" <${process.env.SMTP_EMAIL}>`,
+    from: `"MSWORLD Security ✅" <${process.env.SMTP_EMAIL}>`,
     to,
     subject: "✅ Your Password Was Changed",
+    headers: {
+      "X-Priority": "1",
+      "X-MSMail-Priority": "High",
+      Importance: "High",
+    },
     html: `
-      <p>Hello <b>${username}</b>,</p>
-      <p>Your MSWORLD password was successfully updated.</p>
-      <p>If this wasn't you, please reset your password immediately!</p>
+      <div style="font-family:sans-serif;">
+        <p>Hello <b>${username}</b>,</p>
+        <p>Your MSWORLD password was successfully updated. 🔐</p>
+        <p>If this wasn't you, please reset your password immediately.</p>
+        <hr>
+        <small>This is an automated message from MSWORLD Security.</small>
+      </div>
     `,
   };
 
   await transporter.sendMail(mailOptions);
 }
 
-// GET: Serve reset form
+// Serve the HTML form (in production you can move this to frontend)
 router.get("/reset-password-form", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/reset-password-form.html"));
 });
 
-// GET: Verify token and redirect to form
+// Check token and redirect
 router.get("/reset-password", (req, res) => {
   const { token } = req.query;
 
@@ -54,7 +63,7 @@ router.get("/reset-password", (req, res) => {
   }
 });
 
-// POST: Handle reset form submission
+// Handle password reset
 router.post("/reset-password", async (req, res) => {
   const { token, newPassword } = req.body;
   console.log("🔍 Received:", { token, newPassword });
