@@ -22,11 +22,7 @@ router.get("/reset-password", (req, res) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Debugging log
     console.log("✅ Token verified. Redirecting user...");
-
-    // Redirect user to frontend reset form with token
     res.redirect(`https://mxapi.onrender.com/mx/reset-password-form?token=${token}`);
   } catch (error) {
     console.error("❌ Token verification failed:", error.message);
@@ -37,8 +33,6 @@ router.get("/reset-password", (req, res) => {
 // Step 2: Handle Password Reset
 router.post("/reset-password", async (req, res) => {
   const { token, newPassword } = req.body;
-
-  // Debugging log
   console.log("🔍 Received data:", { token, newPassword });
 
   if (!token || !newPassword) {
@@ -46,13 +40,21 @@ router.post("/reset-password", async (req, res) => {
   }
 
   try {
-    // Verify Token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const email = decoded.email;
-
     console.log("✅ Token decoded, email:", email);
 
-    // Get the user's current password and last password change date
+    // Check token expiry from DB (optional extra protection)
+    const tokenResult = await pool.query(
+      "SELECT token_expires_at FROM users WHERE email = $1 AND reset_token = $2",
+      [email, token]
+    );
+
+    if (tokenResult.rows.length === 0 || new Date() > new Date(tokenResult.rows[0].token_expires_at)) {
+      return res.status(400).json({ error: "❌ Reset link has expired." });
+    }
+
+    // Get current password info
     const userResult = await pool.query(
       "SELECT password_hash, username, last_password_change FROM users WHERE email = $1",
       [email]
@@ -64,35 +66,32 @@ router.post("/reset-password", async (req, res) => {
 
     const user = userResult.rows[0];
 
-  // Check if new password is the same as the old one
-const isSamePassword = await bcrypt.compare(newPassword, user.password_hash);
-if (isSamePassword) {
-    console.log("❌ New password is the same as the old one!"); // Debugging log
-    return res.status(400).json({ error: "❌ New password cannot be the same as the old password!" });
-}
+    // Check if password is same as old one
+    const isSamePassword = await bcrypt.compare(newPassword, user.password_hash);
+    if (isSamePassword) {
+      return res.status(400).json({ error: "❌ New password cannot be the same as the old password!" });
+    }
 
-    // Hash New Password
+    // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Update Password in Database and Set Last Password Change Date
+    // Update password + clear token
     const updateResult = await pool.query(
       "UPDATE users SET password_hash = $1, last_password_change = NOW(), reset_token = NULL, token_expires_at = NULL WHERE email = $2 RETURNING *",
       [hashedPassword, email]
-    );  
+    );
 
-    // Handle `last_password_change` if NULL
     let message = "✅ Password reset successfully!";
     if (user.last_password_change) {
       const lastChangeDate = new Date(user.last_password_change);
       const now = new Date();
-      const timeDifference = Math.floor((now - lastChangeDate) / (1000 * 60 * 60 * 24)); // Convert to days
-
-      if (timeDifference > 0) {
-        message += ` Your last password change was ${timeDifference} days ago.`;
+      const daysAgo = Math.floor((now - lastChangeDate) / (1000 * 60 * 60 * 24));
+      if (daysAgo > 0) {
+        message += ` Your last password change was ${daysAgo} days ago.`;
       }
     }
 
-    // 📩 Send email notification
+    // 📩 Send notification
     sendEmailNotification(
       email,
       "Your Password Was Changed",
@@ -102,6 +101,7 @@ if (isSamePassword) {
 
     console.log("✅ Password successfully updated for", email);
     res.status(200).json({ message });
+
   } catch (error) {
     console.error("❌ Error:", error.message);
     res.status(400).json({ error: "❌ Invalid or expired reset link." });
