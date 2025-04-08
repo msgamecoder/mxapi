@@ -20,17 +20,20 @@ router.post("/forgot-password", async (req, res) => {
     const user = result.rows[0];
     const email = user.email;
 
-    // Generate reset token (valid for 2 minutes)
-    const token = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: "2m" });
+    // Generate reset token (valid for 15 minutes)
+    const token = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: "15m" });
 
     // Store reset token & expiry in the database
     await pool.query(
-      "UPDATE users SET reset_token = $1, token_expires_at = NOW() + INTERVAL '2 minutes' WHERE email = $2",
+      "UPDATE users SET reset_token = $1, token_expires_at = NOW() + INTERVAL '15 minutes' WHERE email = $2",
       [token, email]
     );
 
     // Generate Reset Link
     const resetLink = `https://mxapi.onrender.com/mx/reset-password?token=${token}`;
+
+    // Log time for debugging email delay
+    console.log("📨 Reset email sent at:", new Date().toLocaleTimeString());
 
     // 📩 Send email notification
     sendEmailNotification(
@@ -38,7 +41,7 @@ router.post("/forgot-password", async (req, res) => {
       "Password Reset Request",
       `You requested a password reset. Click the link below:<br><br>
        <a href="${resetLink}" style="color:blue;">Reset Password</a><br><br>
-       This link will expire in 2 minutes.`,
+       This link will expire in 15 minutes.`,
       user.username
     ).catch(err => console.error("❌ Email failed:", err));
 
@@ -50,7 +53,7 @@ router.post("/forgot-password", async (req, res) => {
   }
 });
 
-// Route to Check Token Expiry (For Debugging)
+// Optional: Check token manually
 router.get("/check-token", (req, res) => {
   const { token } = req.query;
   try {
