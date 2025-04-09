@@ -9,7 +9,7 @@ router.post("/forgot-password", async (req, res) => {
   try {
     const { userInput } = req.body;
 
-    // Check if user exists (by username or email)
+    // Check if user exists
     const query = `SELECT email, username FROM users WHERE username = $1 OR email = $1 LIMIT 1`;
     const result = await pool.query(query, [userInput]);
 
@@ -20,22 +20,23 @@ router.post("/forgot-password", async (req, res) => {
     const user = result.rows[0];
     const email = user.email;
 
-    // Generate reset token (valid for 15 minutes)
+    // Generate JWT token for reset
     const token = jwt.sign({ email }, process.env.JWT_SECRET, { expiresIn: "15m" });
 
-    // Store reset token & expiry in the database
+    // Store reset token in DB
     await pool.query(
       "UPDATE users SET reset_token = $1, token_expires_at = NOW() + INTERVAL '15 minutes' WHERE email = $2",
       [token, email]
     );
 
-    // Generate Reset Link
     const resetLink = `https://mxapi.onrender.com/mx/reset-password?token=${token}`;
 
-    // Log time for debugging email delay
-    console.log("📨 Reset email sent at:", new Date().toLocaleTimeString());
+    console.log("📨 Reset email sending started at:", new Date().toLocaleTimeString());
 
-    // 📩 Send email notification
+    // ✅ Send response FIRST
+    res.status(200).json({ message: "✅ Reset link sent to your email" });
+
+    // 📩 Then send email after response
     sendEmailNotification(
       email,
       "Password Reset Request",
@@ -44,8 +45,6 @@ router.post("/forgot-password", async (req, res) => {
        This link will expire in 15 minutes.`,
       user.username
     ).catch(err => console.error("❌ Email failed:", err));
-
-    res.status(200).json({ message: "✅ Reset link sent to your email" });
 
   } catch (error) {
     console.error("❌ Error:", error);
