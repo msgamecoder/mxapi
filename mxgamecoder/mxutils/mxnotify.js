@@ -74,15 +74,14 @@ const sendEmailNotification = async (userEmail, subject, message, username) => {
     };
     saveNotificationToJson(username, notification);
 
-    // 🔐 Send email using Brevo SMTP
+    // 🔐 Send email using Gmail
     let transporter = nodemailer.createTransport({
-      host: "smtp-relay.brevo.com",
-      port: 587, // Common SMTP port for Brevo
+      service: "gmail",
       auth: {
         user: process.env.SMTP_EMAIL,
         pass: process.env.SMTP_PASSWORD,
       },
-      secure: false,
+      secure: true,
       tls: {
         rejectUnauthorized: false,
       },
@@ -104,7 +103,7 @@ const sendEmailNotification = async (userEmail, subject, message, username) => {
         "X-MSMail-Priority": "High",
         "Importance": "High",
       },
-    };
+    };    
 
     await transporter.sendMail(mailOptions);
     console.log(`📩 Email sent to ${userEmail}: ${subject}`);
