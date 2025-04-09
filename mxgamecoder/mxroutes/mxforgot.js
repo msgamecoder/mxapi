@@ -70,9 +70,9 @@ router.post("/validate-code", async (req, res) => {
     }
 
     const user = result.rows[0];
-    const storedCode = user.reset_code;
-    const codeExpiresAt = user.code_expires_at;
-
+    const storedCode = user.reset_token;
+    const codeExpiresAt = user.token_expires_at;
+    
     // 🔑 Validate code
     if (storedCode !== code) {
       return res.status(400).json({ message: "❌ Invalid code" });
