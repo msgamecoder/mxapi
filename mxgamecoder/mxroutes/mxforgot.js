@@ -97,30 +97,42 @@ router.post("/reset-password", async (req, res) => {
   const { token, newPassword } = req.body;
 
   try {
-    // 🕵️‍♂️ Search user by token
+    // 🕵️‍♂️ Find user by reset code (not token)
     const userQuery = `SELECT * FROM users WHERE reset_token = $1 LIMIT 1`;
     const result = await pool.query(userQuery, [token]);
 
     if (result.rows.length === 0) {
-      return res.status(400).json({ error: "❌ Invalid or expired token" });
+      return res.status(400).json({ error: "❌ Invalid or expired code" });
     }
 
     const user = result.rows[0];
     const now = new Date();
 
-    // ⏰ Check if token is expired
+    // ⏰ Check if code expired
     if (now > new Date(user.token_expires_at)) {
-      return res.status(400).json({ error: "❌ Reset link has expired" });
+      return res.status(400).json({ error: "❌ Reset code has expired" });
     }
 
-    // 🔐 Hash the new password
+    // 🧠 Stage 0: Check if new password is same as old password
+    const isSamePassword = await bcrypt.compare(newPassword, user.password_hash);
+    if (isSamePassword) {
+      const lastChanged = user.last_password_change
+        ? new Date(user.last_password_change).toLocaleString()
+        : "unknown";
+
+      return res.status(400).json({
+        error: `❌ New password cannot be the same as the old one.\nLast password update was on: ${lastChanged}`
+      });
+    }
+
+    // 🔐 Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     const lastPasswordChange = new Date();
 
-    // 💾 Update user password and clear reset_token
+    // 💾 Update password, clear code + expiry
     await pool.query(
       `UPDATE users 
-       SET password_hash = $1, 
+       SET password_hash = $1,
            last_password_change = $2,
            reset_token = NULL,
            token_expires_at = NULL
@@ -128,7 +140,7 @@ router.post("/reset-password", async (req, res) => {
       [hashedPassword, lastPasswordChange, user.id]
     );
 
-    // 📩 Send notification
+    // 📩 Notify user
     sendEmailNotification(
       user.email,
       "🔐 Password Changed",
