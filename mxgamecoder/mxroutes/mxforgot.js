@@ -29,12 +29,12 @@ router.post("/forgot-password", async (req, res) => {
     console.log("User found:", user);
 
     // Generate reset code and expiration
-    const resetCode = generateResetCode();
+    const resetCode = generateCode();  // Use generateCode function here
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // Expires in 15 minutes
     console.log("Generated reset code:", resetCode, "Expires at:", expiresAt);
 
     // Update reset code in database
-    const updateQuery = `UPDATE users SET reset_code = $1, reset_code_expires_at = $2 WHERE email = $3 RETURNING *`;
+    const updateQuery = `UPDATE users SET reset_token = $1, token_expires_at = $2 WHERE email = $3 RETURNING *`;
     await pool.query(updateQuery, [resetCode, expiresAt, userInput]);
     console.log("Updated reset code for user:", userInput);
 
@@ -48,7 +48,6 @@ router.post("/forgot-password", async (req, res) => {
     res.status(500).json({ message: "❌ Server error" });
   }
 });
-
 
 // Optional: Validate the code
 router.post("/validate-code", async (req, res) => {
@@ -137,6 +136,5 @@ router.post("/reset-password", async (req, res) => {
     res.status(500).json({ error: "❌ Server error" });
   }
 });
-
 
 module.exports = router;
