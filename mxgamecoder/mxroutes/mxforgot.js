@@ -94,12 +94,12 @@ router.post("/validate-code", async (req, res) => {
       return res.status(400).json({ message: "❌ Code expired" });
     }
 
-    // 💾 Mark the code as used by setting reset_token to NULL
+   /* // 💾 Mark the code as used by setting reset_token to NULL
     await pool.query(
       `UPDATE users SET reset_token = NULL, token_expires_at = NULL WHERE email = $1`,
       [email]
     );
-    console.log("📤 Code marked as used");
+    console.log("📤 Code marked as used");*/
 
     // ✅ Code is valid and marked as used
     res.status(200).json({ message: "✅ Code is valid" });
