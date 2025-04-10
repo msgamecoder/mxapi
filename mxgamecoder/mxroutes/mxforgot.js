@@ -100,12 +100,12 @@ router.post("/validate-code", async (req, res) => {
 });
 
 router.post("/reset-password", async (req, res) => {
-  const { token, newPassword } = req.body;
+  const { email, newPassword } = req.body;
 
   try {
-    // 🕵️‍♂️ Find user by reset code (not token)
-    const userQuery = `SELECT * FROM users WHERE reset_token = $1 LIMIT 1`;
-    const result = await pool.query(userQuery, [token]);
+    // 🕵️‍♂️ Find user by email
+    const userQuery = `SELECT * FROM users WHERE email = $1 LIMIT 1`;
+    const result = await pool.query(userQuery, [email]);
 
     if (result.rows.length === 0) {
       return res.status(400).json({ error: "❌ Invalid or expired code" });
@@ -119,47 +119,31 @@ router.post("/reset-password", async (req, res) => {
       return res.status(400).json({ error: "❌ Reset code has expired" });
     }
 
-    // 🧠 Stage 0: Check if new password is same as old password
+    // 🧠 Check if new password is same as old password
     const isSamePassword = await bcrypt.compare(newPassword, user.password_hash);
     if (isSamePassword) {
-      const lastChanged = user.last_password_change
-        ? new Date(user.last_password_change).toLocaleString()
-        : "unknown";
-
-      return res.status(400).json({
-        error: `❌ New password cannot be the same as the old one.\nLast password update was on: ${lastChanged}`
-      });
+      return res.status(400).json({ error: "❌ New password cannot be the same as the old one." });
     }
 
-    // 🔐 Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    const lastPasswordChange = new Date();
+    // 🔒 Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    // 💾 Update password, clear code + expiry
+    // Update the password
     await pool.query(
-      `UPDATE users 
-       SET password_hash = $1,
-           last_password_change = $2,
-           reset_token = NULL,
-           token_expires_at = NULL
-       WHERE id = $3`,
-      [hashedPassword, lastPasswordChange, user.id]
+      "UPDATE users SET password_hash = $1, last_password_change = NOW() WHERE email = $2",
+      [hashedPassword, email]
     );
 
-    // 📩 Notify user
-    sendEmailNotification(
-      user.email,
-      "🔐 Password Changed",
-      `Hi ${user.username}, your password was successfully updated on MSWorld. If this wasn't you, please contact support immediately.`,
-      user.username
-    ).catch(err => console.error("❌ Notification error:", err));
+    // Clear reset token and expiration
+    await pool.query("UPDATE users SET reset_token = NULL, token_expires_at = NULL WHERE email = $1", [email]);
 
-    res.status(200).json({ message: "✅ Password updated successfully!" });
-
-  } catch (err) {
-    console.error("❌ Error updating password:", err);
+    res.status(200).json({ message: "✅ Password reset successfully!" });
+  } catch (error) {
+    console.error("❌ Error:", error);
     res.status(500).json({ error: "❌ Server error" });
   }
 });
+
 
 module.exports = router;
