@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../mxconfig/mxdatabase");
-const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 require("dotenv").config();
 const { sendEmailNotification } = require("../mxutils/mxnotify");
@@ -46,11 +45,11 @@ router.post("/forgot-password", async (req, res) => {
     // ✅ Send response FIRST
     res.status(200).json({ message: "✅ Code sent to your email" });
 
-    // 📩 Send email with code
+    // 📩 Send email with code and username
     sendEmailNotification(
       email,
       "Password Reset Request",
-      `Your password reset code is: ${code}. This code will expire in 15 minutes.`,
+      `Hey ${user.username} 👋, your reset code is: ${code}. It will expire in 15 minutes! ⏳`,
       user.username
     ).catch(err => console.error("❌ Email failed:", err));
 
@@ -94,14 +93,7 @@ router.post("/validate-code", async (req, res) => {
       return res.status(400).json({ message: "❌ Code expired" });
     }
 
-   /* // 💾 Mark the code as used by setting reset_token to NULL
-    await pool.query(
-      `UPDATE users SET reset_token = NULL, token_expires_at = NULL WHERE email = $1`,
-      [email]
-    );
-    console.log("📤 Code marked as used");*/
-
-    // ✅ Code is valid and marked as used
+    // ✅ Code is valid
     res.status(200).json({ message: "✅ Code is valid" });
 
   } catch (error) {
@@ -156,7 +148,17 @@ router.post("/reset-password", async (req, res) => {
     await pool.query("UPDATE users SET reset_token = NULL, token_expires_at = NULL WHERE email = $1", [email]);
     console.log("📤 Reset token cleared");
 
+    // Send password reset success notification
+    sendEmailNotification(
+      email,
+      "Password Changed Successfully",
+      `Hey ${user.username} 👋, your password was successfully reset! 🔑 If you didn't request this, please contact support ASAP! ⚠️`,
+      user.username
+    ).catch(err => console.error("❌ Email failed:", err));
+
+    // ✅ Respond with success
     res.status(200).json({ message: "✅ Password reset successfully!" });
+
   } catch (error) {
     console.error("❌ Error:", error);
     res.status(500).json({ error: "❌ Server error" });
