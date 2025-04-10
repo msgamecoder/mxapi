@@ -14,48 +14,41 @@ function generateCode() {
 router.post("/forgot-password", async (req, res) => {
   try {
     const { userInput } = req.body;
+    console.log("Received forgot password request for user:", userInput);
 
     // 🔍 Check if user exists (by email or username)
-    const query = `SELECT email, username FROM users WHERE username = $1 OR email = $1 LIMIT 1`;
-    const result = await pool.query(query, [userInput]);
+    const query = `SELECT * FROM users WHERE email = $1 OR username = $1 LIMIT 1`;
+    const { rows } = await pool.query(query, [userInput]);
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "❌ User not found" });
+    if (rows.length === 0) {
+      console.log("❌ User not found for email/username:", userInput);
+      return res.status(400).json({ message: "❌ User not found" });
     }
 
-    const user = result.rows[0];
-    const email = user.email;
+    const user = rows[0];
+    console.log("User found:", user);
 
-    // 🔑 Generate 6-digit code
-    const code = generateCode();
+    // Generate reset code and expiration
+    const resetCode = generateResetCode();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // Expires in 15 minutes
+    console.log("Generated reset code:", resetCode, "Expires at:", expiresAt);
 
-    // 🛡️ Set expiration time for the code (e.g., 15 minutes)
-    const codeExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes from now
+    // Update reset code in database
+    const updateQuery = `UPDATE users SET reset_code = $1, reset_code_expires_at = $2 WHERE email = $3 RETURNING *`;
+    await pool.query(updateQuery, [resetCode, expiresAt, userInput]);
+    console.log("Updated reset code for user:", userInput);
 
-    // 💾 Store code in DB
-    await pool.query(
-      "UPDATE users SET reset_token = $1, token_expires_at = $2 WHERE email = $3",
-      [code, codeExpiresAt, email]
-    );
+    // Send email with reset code (nodemailer)
+    await sendResetCodeEmail(user.email, resetCode);
+    console.log("Reset code email sent to:", user.email);
 
-    console.log("📨 Reset code generated:", code);
-
-    // ✅ Send response FIRST
-    res.status(200).json({ message: "✅ Code sent to your email" });
-
-    // 📩 Send email with code
-    sendEmailNotification(
-      email,
-      "Password Reset Request",
-      `Your password reset code is: ${code}. This code will expire in 15 minutes.`,
-      user.username
-    ).catch(err => console.error("❌ Email failed:", err));
-
+    res.status(200).json({ message: "✅ Reset code sent!" });
   } catch (error) {
-    console.error("❌ Error:", error);
+    console.error("❌ Error in forgot-password:", error);
     res.status(500).json({ message: "❌ Server error" });
   }
 });
+
 
 // Optional: Validate the code
 router.post("/validate-code", async (req, res) => {
