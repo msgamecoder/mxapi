@@ -42,14 +42,14 @@ function saveNotificationToJson(username, notification) {
 }
 
 // Save notification to Firebase
-async function saveNotificationToFirebase(username, notification) {
+async function saveNotificationToFirebase(username, notification, uid) {
   try {
     await addDoc(collection(db, "notifications"), {
       username: username,
-      uid: request.auth.uid,  // Make sure to include the UID of the authenticated user
+      uid: uid,  // Use the passed UID
       ...notification,
       createdAt: new Date(),
-    });    
+    });
     console.log("📲 Notification saved to Firebase.");
   } catch (error) {
     console.error("❌ Error saving notification to Firebase:", error);
@@ -57,7 +57,7 @@ async function saveNotificationToFirebase(username, notification) {
 }
 
 // MAIN FUNCTION TO SEND EMAIL AND LOG NOTIFICATION
-const sendEmailNotification = async (userEmail, subject, message, username) => {
+const sendEmailNotification = async (userEmail, subject, message, username, uid) => {
   try {
     const now = Date.now();
     if (emailCooldown.has(userEmail)) {
@@ -98,7 +98,7 @@ const sendEmailNotification = async (userEmail, subject, message, username) => {
     saveNotificationToJson(username, notification);
 
     // 🔥 Save to Firebase
-    await saveNotificationToFirebase(username, notification);
+    await saveNotificationToFirebase(username, notification, uid);
 
     // 🔐 Send email using Gmail
     let transporter = nodemailer.createTransport({
