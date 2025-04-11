@@ -46,9 +46,10 @@ async function saveNotificationToFirebase(username, notification) {
   try {
     await addDoc(collection(db, "notifications"), {
       username: username,
+      uid: request.auth.uid,  // Make sure to include the UID of the authenticated user
       ...notification,
       createdAt: new Date(),
-    });
+    });    
     console.log("📲 Notification saved to Firebase.");
   } catch (error) {
     console.error("❌ Error saving notification to Firebase:", error);
