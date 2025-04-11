@@ -4,7 +4,7 @@ const path = require("path");
 require("dotenv").config({ path: "../.env" });
 const sanitizeFilename = require("sanitize-filename");
 
-const { db } = require("../mxfirebase-config");
+const { db } = require("./mxfirebase-config");
 const { collection, addDoc } = require("firebase/firestore");
 
 const NOTIFICATION_DIR = path.join(__dirname, "../mxgamecodernot");
