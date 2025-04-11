@@ -1,6 +1,6 @@
-// mxfirebase-config.js (CommonJS version)
-const firebase = require("firebase/compat/app");
-require("firebase/compat/firestore");
+// mxfirebase-config.js
+const { initializeApp } = require("firebase/app");
+const { getFirestore, collection, addDoc, getDocs } = require("firebase/firestore");
 
 const firebaseConfig = {
   apiKey: "AIzaSyB-v2EELtWdQVK4q-bzsJFW9jxKakL8FvM",
@@ -13,9 +13,9 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = firebase.initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore
-const db = firebase.firestore();
+// Firestore
+const db = getFirestore(app);
 
-module.exports = { db };
+module.exports = { db, collection, addDoc, getDocs };
