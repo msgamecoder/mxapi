@@ -1,0 +1,23 @@
+import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
+import { getMessaging } from 'firebase/messaging';
+
+// Firebase configuration object from your Firebase project setup
+const firebaseConfig = {
+  apiKey: "AIzaSyB-v2EELtWdQVK4q-bzsJFW9jxKakL8FvM",
+  authDomain: "msworld-feedback.firebaseapp.com",
+  projectId: "msworld-feedback",
+  storageBucket: "msworld-feedback.appspot.com",
+  messagingSenderId: "728370969195",
+  appId: "1:728370969195:web:fce607fb6be4b9915b8f2e",
+  measurementId: "G-XYZ123456"  // Replace with actual Measurement ID
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+
+// Initialize Firestore and Firebase Messaging
+const db = getFirestore(app);
+const messaging = getMessaging(app);
+
+export { db, messaging };
