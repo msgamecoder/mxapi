@@ -3,12 +3,12 @@ const { initializeApp } = require("firebase/app");
 const { getFirestore, collection, addDoc, getDocs } = require("firebase/firestore");
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBgWWvy7KoJF9txCZeQh9VZiyKBst4zRLw",
-  authDomain: "mxgamecoder-50b0a.firebaseapp.com",
-  projectId: "mxgamecoder-50b0a",
-  storageBucket: "mxgamecoder-50b0a.firebasestorage.app",
-  messagingSenderId: "354711909248",
-  appId: "1:354711909248:android:915b02958ca0c9751f4765"
+  apiKey: "AIzaSyB-v2EELtWdQVK4q-bzsJFW9jxKakL8FvM",
+  authDomain: "msworld-feedback.firebaseapp.com",
+  projectId: "msworld-feedback",
+  storageBucket: "msworld-feedback.appspot.com",
+  messagingSenderId: "728370969195",
+  appId: "1:728370969195:web:fce607fb6be4b9915b8f2e"
 };
 
 // Initialize Firebase
