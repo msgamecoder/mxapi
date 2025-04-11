@@ -23,6 +23,12 @@ function getUserNotificationFile(username) {
   return userFile;
 }
 
+function updateUserNotifications(username, updatedNotifications) {
+  const safeUsername = sanitizeFilename(username);
+  const userFile = path.join(NOTIFICATION_DIR, `${safeUsername}_notifications.json`);
+  fs.writeFileSync(userFile, JSON.stringify({ notifications: updatedNotifications }, null, 2));
+}
+
 // Get notifications from Firebase for a user
 async function getNotificationsFromFirebase(username) {
   console.log(`Fetching notifications from Firebase for user: ${username}`);
@@ -87,5 +93,6 @@ router.put("/read/:username", (req, res) => {
     res.status(500).json({ message: "Failed to update notification." });
   }
 });
+
 
 module.exports = router;
