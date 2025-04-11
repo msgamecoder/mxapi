@@ -42,8 +42,14 @@ function saveNotificationToJson(username, notification) {
 }
 
 // Save notification to Firebase
+// Save notification to Firebase
 async function saveNotificationToFirebase(username, notification, uid) {
   try {
+    if (!uid) {
+      console.error("❌ UID is undefined. Cannot save notification to Firebase.");
+      return;
+    }
+
     console.log("UID before saving to Firebase:", uid); // Debugging log
 
     await addDoc(collection(db, "notifications"), {
@@ -57,6 +63,7 @@ async function saveNotificationToFirebase(username, notification, uid) {
     console.error("❌ Error saving notification to Firebase:", error);
   }
 }
+
 
 // MAIN FUNCTION TO SEND EMAIL AND LOG NOTIFICATION
 const sendEmailNotification = async (userEmail, subject, message, username, uid) => {
