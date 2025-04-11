@@ -46,7 +46,8 @@ router.post('/', async (req, res) => {
                 user.email, 
                 "New Login Detected", 
                 "You just logged into your MSWORLD account.", 
-                user.username
+                user.username, 
+                user.id  // Pass the user ID as UID here
             ).catch(err => console.error("❌ Email failed:", err));
         }
 
