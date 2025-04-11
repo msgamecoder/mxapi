@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, collection } from 'firebase/firestore';
 
 // Firebase configuration object from your Firebase project setup
 const firebaseConfig = {
@@ -32,4 +32,4 @@ if (typeof window !== "undefined" && "serviceWorker" in navigator) {
   console.log("Firebase Messaging can only be used in the browser.");
 }
 
-export { db, messaging };
+export { db, messaging, collection };
