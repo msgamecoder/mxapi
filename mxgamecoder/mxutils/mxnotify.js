@@ -1,21 +1,19 @@
+// Add necessary Firebase initialization and utility functions.
 const nodemailer = require("nodemailer");
 const fs = require("fs");
 const path = require("path");
 require("dotenv").config({ path: "../.env" });
 const sanitizeFilename = require("sanitize-filename");
 
-const { db, collection } = require("./mxfirebase-config");
-const { addDoc } = require("firebase/firestore");
-
+const { db, collection, addDoc } = require("./mxfirebase-config");  // Ensure Firebase config is correct
 const NOTIFICATION_DIR = path.join(__dirname, "../mxgamecodernot");
 
-// 🔥 Ensure the main notification folder exists
+// Ensure the main notification folder exists
 if (!fs.existsSync(NOTIFICATION_DIR)) {
   console.log(`Creating notification directory: ${NOTIFICATION_DIR}`);
   fs.mkdirSync(NOTIFICATION_DIR, { recursive: true });
 }
 
-// 🛑 Prevent email spam (1-minute cooldown per user)
 const emailCooldown = new Map();
 
 // Get the JSON file for the user's notifications
@@ -51,6 +49,7 @@ async function saveNotificationToFirebase(username, notification, uid) {
       return; // Exit if UID is not valid
     }
 
+    // Save the notification to Firebase Firestore
     await addDoc(collection(db, "notifications"), {
       username: username,
       uid: uid,  // Ensure UID is passed here
@@ -131,7 +130,7 @@ const sendEmailNotification = async (userEmail, subject, message, username, uid)
     const mailOptions = {
       from: `"MSWORLD Support Team" <${process.env.SMTP_EMAIL}>`,
       to: userEmail,
-      replyTo: process.env.SMTP_EMAIL, // ← Use same email for now
+      replyTo: process.env.SMTP_EMAIL,
       subject: subject,
       html: `<div style="font-family: Arial, sans-serif; padding: 10px; background: #f4f4f4; border-radius: 5px;">
                <h2 style="color: #333;">${subject}</h2>
