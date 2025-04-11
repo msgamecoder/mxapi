@@ -2,8 +2,8 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const sanitizeFilename = require("sanitize-filename");
-const { sendEmailNotification } = require("../mxutils/mxnotify");
-const { db } = require("../mxfirebase-config");
+const { sendEmailNotification } = require("./mxutils/mxnotify");
+const { db } = require("./mxfirebase-config");
 const { querySnapshot } = require("firebase/firestore");
 const { collection, getDocs } = require("firebase/firestore");
 
