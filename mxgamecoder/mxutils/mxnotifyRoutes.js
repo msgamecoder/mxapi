@@ -3,9 +3,8 @@ const fs = require("fs");
 const path = require("path");
 const sanitizeFilename = require("sanitize-filename");
 const { sendEmailNotification } = require("./mxnotify");
-const { db } = require("./mxfirebase-config");
-const { querySnapshot } = require("firebase/firestore");
-const { collection, getDocs } = require("firebase/firestore");
+const { db, collection } = require("./mxfirebase-config");
+const { getDocs } = require("firebase/firestore");
 
 const router = express.Router();
 const NOTIFICATION_DIR = path.join(__dirname, "../mxgamecodernot");
