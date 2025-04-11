@@ -42,19 +42,18 @@ function saveNotificationToJson(username, notification) {
 }
 
 // Save notification to Firebase
-// Save notification to Firebase
 async function saveNotificationToFirebase(username, notification, uid) {
   try {
+    console.log("UID before saving to Firebase:", uid); // Debugging: Check UID value
+
     if (!uid) {
       console.error("❌ UID is undefined. Cannot save notification to Firebase.");
-      return;
+      return; // Exit if UID is not valid
     }
-
-    console.log("UID before saving to Firebase:", uid); // Debugging log
 
     await addDoc(collection(db, "notifications"), {
       username: username,
-      uid: uid,  // Use the passed UID
+      uid: uid,  // Ensure UID is passed here
       ...notification,
       createdAt: new Date(),
     });
@@ -64,10 +63,17 @@ async function saveNotificationToFirebase(username, notification, uid) {
   }
 }
 
-
 // MAIN FUNCTION TO SEND EMAIL AND LOG NOTIFICATION
 const sendEmailNotification = async (userEmail, subject, message, username, uid) => {
   try {
+    // Debugging: Check UID value before proceeding
+    console.log("Inside sendEmailNotification - UID:", uid);
+    
+    if (!uid) {
+      console.error("❌ UID is undefined in sendEmailNotification.");
+      return; // Exit early if UID is undefined
+    }
+
     const now = Date.now();
     if (emailCooldown.has(userEmail)) {
       const lastSent = emailCooldown.get(userEmail);
