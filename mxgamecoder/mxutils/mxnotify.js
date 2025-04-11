@@ -44,6 +44,8 @@ function saveNotificationToJson(username, notification) {
 // Save notification to Firebase
 async function saveNotificationToFirebase(username, notification, uid) {
   try {
+    console.log("UID before saving to Firebase:", uid); // Debugging log
+
     await addDoc(collection(db, "notifications"), {
       username: username,
       uid: uid,  // Use the passed UID
