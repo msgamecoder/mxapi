@@ -1,6 +1,5 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { getMessaging } from 'firebase/messaging';
 
 // Firebase configuration object from your Firebase project setup
 const firebaseConfig = {
@@ -16,8 +15,21 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Firestore and Firebase Messaging
+// Initialize Firestore
 const db = getFirestore(app);
-const messaging = getMessaging(app);
+
+// Check if running in a browser environment before initializing Firebase Messaging
+let messaging;
+
+if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+  import("firebase/messaging").then(({ getMessaging }) => {
+    messaging = getMessaging(app);
+    console.log("Firebase Messaging initialized.");
+  }).catch(error => {
+    console.error("Error initializing Firebase Messaging:", error);
+  });
+} else {
+  console.log("Firebase Messaging can only be used in the browser.");
+}
 
 export { db, messaging };
