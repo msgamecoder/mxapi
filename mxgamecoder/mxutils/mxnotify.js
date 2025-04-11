@@ -4,10 +4,14 @@ const path = require("path");
 require("dotenv").config({ path: "../.env" });
 const sanitizeFilename = require("sanitize-filename");
 
+const { db } = require("../mxfirebase-config");
+const { collection, addDoc } = require("firebase/firestore");
+
 const NOTIFICATION_DIR = path.join(__dirname, "../mxgamecodernot");
 
 // 🔥 Ensure the main notification folder exists
 if (!fs.existsSync(NOTIFICATION_DIR)) {
+  console.log(`Creating notification directory: ${NOTIFICATION_DIR}`);
   fs.mkdirSync(NOTIFICATION_DIR, { recursive: true });
 }
 
@@ -19,7 +23,9 @@ function getUserNotificationFile(username) {
   const safeUsername = sanitizeFilename(username);
   const userFile = path.join(NOTIFICATION_DIR, `${safeUsername}_notifications.json`);
 
+  console.log(`Checking for notification file: ${userFile}`);
   if (!fs.existsSync(userFile)) {
+    console.log(`Notification file not found for ${username}. Creating new one.`);
     fs.writeFileSync(userFile, JSON.stringify({ notifications: [] }));
   }
 
@@ -32,6 +38,21 @@ function saveNotificationToJson(username, notification) {
   const data = JSON.parse(fs.readFileSync(userFile, "utf-8"));
   data.notifications.push(notification);
   fs.writeFileSync(userFile, JSON.stringify(data, null, 2));
+  console.log(`Notification saved to JSON for user: ${username}`);
+}
+
+// Save notification to Firebase
+async function saveNotificationToFirebase(username, notification) {
+  try {
+    await addDoc(collection(db, "notifications"), {
+      username: username,
+      ...notification,
+      createdAt: new Date(),
+    });
+    console.log("📲 Notification saved to Firebase.");
+  } catch (error) {
+    console.error("❌ Error saving notification to Firebase:", error);
+  }
 }
 
 // MAIN FUNCTION TO SEND EMAIL AND LOG NOTIFICATION
@@ -52,6 +73,7 @@ const sendEmailNotification = async (userEmail, subject, message, username) => {
     const userFolder = path.join(NOTIFICATION_DIR, safeUsername);
 
     if (!fs.existsSync(userFolder)) {
+      console.log(`Creating folder for user notifications: ${userFolder}`);
       fs.mkdirSync(userFolder, { recursive: true });
     }
 
@@ -70,9 +92,12 @@ const sendEmailNotification = async (userEmail, subject, message, username) => {
       message: message,
       time: new Date().toLocaleString(),
       read: false,
-      filename: filename
+      filename: filename,
     };
     saveNotificationToJson(username, notification);
+
+    // 🔥 Save to Firebase
+    await saveNotificationToFirebase(username, notification);
 
     // 🔐 Send email using Gmail
     let transporter = nodemailer.createTransport({
@@ -103,7 +128,7 @@ const sendEmailNotification = async (userEmail, subject, message, username) => {
         "X-MSMail-Priority": "High",
         "Importance": "High",
       },
-    };    
+    };
 
     await transporter.sendMail(mailOptions);
     console.log(`📩 Email sent to ${userEmail}: ${subject}`);
