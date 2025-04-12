@@ -16,7 +16,7 @@ router.post("/forgot-password", async (req, res) => {
 
     // 🔍 Check if user exists (by email or username)
     console.log("🔍 Checking if user exists with input:", userInput);
-    const query = `SELECT email, username FROM users WHERE username = $1 OR email = $1 LIMIT 1`;
+    const query = `SELECT id, email, username FROM users WHERE username = $1 OR email = $1 LIMIT 1`;
     const result = await pool.query(query, [userInput]);
 
     if (result.rows.length === 0) {
