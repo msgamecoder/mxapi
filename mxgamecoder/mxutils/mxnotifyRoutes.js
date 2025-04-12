@@ -67,7 +67,7 @@ router.get("/:username", async (req, res) => {
 });
 
 // ✅ Mark one notification as read
-router.put("/read/:username", async (req, res) => {
+router.put("/read/:username", (req, res) => {
   const { username } = req.params;
   const { filename } = req.body;
 
@@ -75,34 +75,23 @@ router.put("/read/:username", async (req, res) => {
   const userFile = getUserNotificationFile(username);
 
   try {
-    let data = JSON.parse(fs.readFileSync(userFile, 'utf-8'));
-    const fileIndex = data.notifications.findIndex(n => n.filename === filename);
+    const data = JSON.parse(fs.readFileSync(userFile, 'utf-8'));
+    const index = data.notifications.findIndex(n => n.filename === filename);
 
-    if (fileIndex !== -1) {
-      data.notifications[fileIndex].read = true;
-      updateUserNotifications(username, data.notifications);
-      console.log(`✅ File-based notification marked as read.`);
-      return res.status(200).json({ message: "Notification marked as read." });
+    if (index === -1) {
+      console.log(`Notification with filename ${filename} not found.`);
+      return res.status(404).json({ message: "Notification not found." });
     }
 
-    // 🔍 Try Firebase
-    const snapshot = await getDocs(collection(db, "notifications"));
-    const matchingDoc = snapshot.docs.find(doc => doc.data().username === username && doc.data().filename === filename);
+    data.notifications[index].read = true;
 
-    if (matchingDoc) {
-      await matchingDoc.ref.update({ read: true });
-      console.log(`✅ Firebase notification marked as read.`);
-      return res.status(200).json({ message: "Firebase notification marked as read." });
-    }
-
-    console.log(`❌ Notification not found in file or Firebase.`);
-    return res.status(404).json({ message: "Notification not found." });
-
+    console.log(`Notification ${filename} marked as read.`);
+    updateUserNotifications(username, data.notifications);
+    res.status(200).json({ message: `Notification ${filename} marked as read.` });
   } catch (err) {
     console.error("❌ Error marking notification as read:", err);
-    return res.status(500).json({ message: "Failed to mark notification as read." });
+    res.status(500).json({ message: "Failed to update notification." });
   }
 });
-
 
 module.exports = router;
