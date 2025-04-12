@@ -17,42 +17,53 @@ const transporter = nodemailer.createTransport({
 router.post('/resend-verification', async (req, res) => {
     try {
         const { usernameOrEmail, password } = req.body;  // Use the consistent name
+        console.log(`Resend Verification Request: usernameOrEmail = ${usernameOrEmail}, password = ${password}`);
 
         const result = await pool.query(
             `SELECT * FROM temp_users WHERE email = $1 OR username = $1`, 
             [usernameOrEmail]
         );
+        console.log(`Database result: ${JSON.stringify(result.rows)}`);
 
         if (result.rowCount === 0) {
+            console.log('❌ No account found');
             return res.status(400).json({ error: '❌ No account found with this email.' });
         }
 
         const user = result.rows[0];
+        console.log(`Found user: ${JSON.stringify(user)}`);
 
         // 🔑 Verify password
         const isMatch = await bcrypt.compare(password, user.password_hash);
+        console.log(`Password match status: ${isMatch}`);
 
         if (!isMatch) {
+            console.log('❌ Incorrect password');
             return res.status(400).json({ error: '❌ Incorrect password.' });
         }
 
         // 🛡️ Ensure user is not already verified
         if (user.verification_token === null) {
+            console.log('❌ Account already verified.');
             return res.status(400).json({ error: '❌ Account already verified. No need to resend verification.' });
         }
 
         // 🛡️ Generate new Verification Token
         const verificationToken = crypto.randomBytes(32).toString('hex');
         const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours expiry
+        console.log(`Generated verification token: ${verificationToken}, expires at: ${tokenExpiresAt}`);
 
         // Update verification token and expiration in temp_users
         await pool.query(
             `UPDATE temp_users SET verification_token = $1, token_expires_at = $2 WHERE id = $3`,
             [verificationToken, tokenExpiresAt, user.id]
         );
+        console.log('Verification token updated in the database.');
 
         // 📩 Send Verification Email directly (Blocking)
         const verificationLink = `${VERIFICATION_URL}/${verificationToken}`;
+        console.log(`Verification email link: ${verificationLink}`);
+        
         await transporter.sendMail({
             from: process.env.SMTP_EMAIL,
             to: user.email,
@@ -75,6 +86,7 @@ router.post('/resend-verification', async (req, res) => {
                 </div>`
         });
 
+        console.log('Verification email sent successfully.');
         return res.json({ message: '✅ Verification email has been resent. Please check your inbox.' });
 
     } catch (error) {
