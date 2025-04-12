@@ -55,6 +55,9 @@ app.use("/mx", mxdelete);
 const profileRoutes = require("./mxgamecoder/mxroutes/mxprofile");
 app.use("/mx", profileRoutes);
 
+const mxresendVerification = require("./mxgamecoder/mxroutes/mxresendVerification");
+app.use("/mx", mxresendVerification);
+
 const mxfilemanager = require("./mxgamecoder/mxroutes/mxfilemanager");
 app.use("/mx", mxfilemanager);
 
