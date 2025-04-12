@@ -1,3 +1,4 @@
+
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
@@ -98,6 +99,28 @@ router.put("/read/:username", (req, res) => {
   } catch (err) {
     console.error("❌ Error marking notification as read:", err);
     res.status(500).json({ message: "Failed to update notification." });
+  }
+});
+
+// Serve a specific notification file (assuming files are stored locally)
+router.get("/:username/:filename", (req, res) => {
+  const { username, filename } = req.params;
+
+  console.log(`Fetching notification file for user: ${username}, filename: ${filename}`);
+  const userFile = getUserNotificationFile(username); // Path to the user's notifications
+  
+  try {
+    const data = JSON.parse(fs.readFileSync(userFile, "utf-8"));
+    const notification = data.notifications.find((notif) => notif.filename === filename);
+
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found." });
+    }
+
+    res.status(200).json({ notification });
+  } catch (err) {
+    console.error("❌ Error reading notification file:", err);
+    res.status(500).json({ message: "Failed to retrieve notification." });
   }
 });
 
