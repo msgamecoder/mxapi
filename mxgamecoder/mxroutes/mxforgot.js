@@ -50,7 +50,8 @@ router.post("/forgot-password", async (req, res) => {
       email,
       "Password Reset Request",
       `Hey ${user.username} 👋, your reset code is: ${code}. It will expire in 15 minutes! ⏳`,
-      user.username
+      user.username,
+      user.id
     ).catch(err => console.error("❌ Email failed:", err));
 
   } catch (error) {
@@ -153,7 +154,8 @@ router.post("/reset-password", async (req, res) => {
       email,
       "Password Changed Successfully",
       `Hey ${user.username} 👋, your password was successfully reset! 🔑 If you didn't request this, please contact support ASAP! ⚠️`,
-      user.username
+      user.username,
+      user.id
     ).catch(err => console.error("❌ Email failed:", err));
 
     // ✅ Respond with success
