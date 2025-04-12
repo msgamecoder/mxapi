@@ -96,12 +96,13 @@ router.post('/check_account_status', async (req, res) => {
 
         const user = result.rows[0];
 
-        // 🔑 Check if the account is already verified
-        if (user.verification_token === null) {
-            return res.json({ success: true });
-        } else {
-            return res.status(400).json({ error: '⚠️ Account is not verified yet. Please check your inbox for the verification email.' });
+        // 🔑 If the account is not verified, redirect
+        if (user.verification_token !== null) {
+            return res.redirect('https://mxgamecoder.lovestoblog.com/index.html');
         }
+        
+        return res.json({ success: true });
+
     } catch (error) {
         console.error('❌ Check Account Status Error:', error);
         return res.status(500).json({ error: '⚠️ Internal server error. Please try again.' });
@@ -143,9 +144,9 @@ router.get('/:token', async (req, res) => {
         }
 
         // ✅ Move user to users table
-        await pool.query(`
-            INSERT INTO users (full_name, username, email, phone_number, password_hash, location, profile_picture, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, '/mxfiles/avatar.png'), NOW())
+        await pool.query(` 
+            INSERT INTO users (full_name, username, email, phone_number, password_hash, location, profile_picture, created_at) 
+            VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, '/mxfiles/avatar.png'), NOW()) 
         `, [user.full_name, user.username, user.email, user.phone_number, user.password_hash, user.location, '/mxfiles/avatar.png']);        
 
         // Delete from temp_users after successful migration
