@@ -94,5 +94,4 @@ router.put("/read/:username", (req, res) => {
   }
 });
 
-
 module.exports = router;
