@@ -94,4 +94,25 @@ router.put("/read/:username", (req, res) => {
   }
 });
 
+// ✅ GET ONE notification by filename (file-based only)
+router.get("/detail/:username/:filename", (req, res) => {
+  const { username, filename } = req.params;
+  const userFile = getUserNotificationFile(username);
+
+  try {
+    const data = JSON.parse(fs.readFileSync(userFile, "utf-8"));
+    const notif = data.notifications.find(n => n.filename === filename);
+
+    if (!notif) {
+      return res.status(404).json({ message: "Notification not found." });
+    }
+
+    return res.status(200).json(notif);
+  } catch (err) {
+    console.error("Error fetching notification detail:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+});
+
+
 module.exports = router;
