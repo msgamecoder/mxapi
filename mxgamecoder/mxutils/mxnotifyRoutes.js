@@ -94,4 +94,41 @@ router.put("/read/:username", (req, res) => {
   }
 });
 
+// ✅ GET A SPECIFIC NOTIFICATION
+router.get("/:username/:filename", async (req, res) => {
+  const { username, filename } = req.params;
+  
+  console.log(`Fetching notification details for user: ${username}, filename: ${filename}`);
+  
+  try {
+    // Get notifications from both Firebase and file-based system
+    const fileNotifications = JSON.parse(fs.readFileSync(getUserNotificationFile(username), 'utf-8')).notifications;
+    console.log(`Notifications from file: ${fileNotifications.length}`);
+    
+    const notification = fileNotifications.find(n => n.filename === filename);
+    if (!notification) {
+      console.log(`Notification ${filename} not found in file notifications.`);
+      
+      // If not found in file notifications, try fetching from Firebase
+      const firebaseNotifications = await getNotificationsFromFirebase(username);
+      const firebaseNotification = firebaseNotifications.find(n => n.filename === filename);
+      
+      if (!firebaseNotification) {
+        console.log(`Notification ${filename} not found in Firebase.`);
+        return res.status(404).json({ message: "Notification not found." });
+      }
+      
+      console.log(`Notification ${filename} found in Firebase.`);
+      return res.status(200).json({ notification: firebaseNotification });
+    }
+    
+    console.log(`Notification ${filename} found in file notifications.`);
+    return res.status(200).json({ notification });
+  } catch (err) {
+    console.error("❌ Error fetching notification details:", err);
+    res.status(500).json({ message: "Failed to fetch notification details." });
+  }
+});
+
+
 module.exports = router;
