@@ -4,23 +4,36 @@ const pool = require('../mxconfig/mxdatabase'); // Database connection
 const bcrypt = require('bcryptjs'); // Use bcrypt for password comparison
 const crypto = require('crypto'); // For token generation
 const nodemailer = require('nodemailer');
+const { Queue } = require('bull'); // Async queue for background tasks
 require('dotenv').config();
 const VERIFICATION_URL = process.env.VERIFICATION_URL;
 
+// Configure the mailer
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: process.env.SMTP_EMAIL, pass: process.env.SMTP_PASSWORD }
 });
 
+// Create an email queue for background tasks
+const emailQueue = new Queue('emailQueue');
+
+// Email job processor
+emailQueue.process(async (job) => {
+    try {
+        await transporter.sendMail(job.data);
+    } catch (err) {
+        console.error('❌ Failed to send email:', err);
+    }
+});
+
 // 📝 Resend Verification Route
 router.post('/resend-verification', async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { email: usernameOrEmail, password } = req.body;
 
-        // 🔍 Check if email exists in temp_users
         const result = await pool.query(
-            `SELECT * FROM temp_users WHERE email = $1`, 
-            [email]
+          `SELECT * FROM temp_users WHERE email = $1 OR username = $1`,
+          [usernameOrEmail]
         );
 
         if (result.rowCount === 0) {
@@ -46,9 +59,9 @@ router.post('/resend-verification', async (req, res) => {
             [verificationToken, tokenExpiresAt, user.id]
         );
 
-        // 📩 Send Verification Email
+        // 📩 Send Verification Email using email queue (Non-blocking)
         const verificationLink = `${VERIFICATION_URL}/${verificationToken}`;
-        transporter.sendMail({
+        emailQueue.add({
             from: process.env.SMTP_EMAIL,
             to: user.email,
             subject: '🚀 Verify Your Email - MSWORLD',
@@ -69,7 +82,7 @@ router.post('/resend-verification', async (req, res) => {
                     </footer>
                 </div>
             `
-        }).catch(err => console.error("❌ Email sending failed:", err));
+        });
 
         return res.json({ message: '✅ Verification email has been resent. Please check your inbox.' });
 
@@ -84,12 +97,11 @@ router.post('/check_account_status', async (req, res) => {
     try {
         const { email } = req.body;
 
-        // 🔍 Check if email exists in temp_users
         const result = await pool.query(
-            `SELECT * FROM temp_users WHERE email = $1`, 
-            [email]
+            `SELECT * FROM temp_users WHERE email = $1 OR username = $1`,
+            [email]  // can be username or email
         );
-
+          
         if (result.rowCount === 0) {
             return res.status(400).json({ error: '❌ No account found with this email.' });
         }
@@ -114,7 +126,6 @@ router.get('/:token', async (req, res) => {
     const { token } = req.params;
 
     try {
-        // 🔍 Find user by token
         const result = await pool.query(
             `SELECT id, full_name, username, email, phone_number, password_hash, location, token_expires_at 
              FROM temp_users WHERE verification_token = $1`, 
@@ -152,8 +163,8 @@ router.get('/:token', async (req, res) => {
         // Delete from temp_users after successful migration
         await pool.query(`DELETE FROM temp_users WHERE id = $1`, [user.id]);
 
-        // 📩 Send Welcome Email (Run in background for speed)
-        transporter.sendMail({
+        // 📩 Send Welcome Email using email queue (Non-blocking)
+        emailQueue.add({
             from: process.env.SMTP_EMAIL,
             to: user.email,
             subject: '🎉 Welcome to MSWORLD!',
@@ -164,7 +175,7 @@ router.get('/:token', async (req, res) => {
              If you have any questions or need assistance, don't hesitate to reach out to our support team. We're here to help! <br><br>
              We’re thrilled to have you on board! 🎉 <br><br>
              - The MSWORLD Team`
-        }).catch(err => console.error("❌ Email failed:", err));
+        });
 
         // 🔗 Redirect to login page
         return res.redirect('https://mxgamecoder.lovestoblog.com/submit.html');  // Redirect to the login page
