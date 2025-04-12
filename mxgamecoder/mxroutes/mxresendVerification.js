@@ -79,4 +79,99 @@ router.post('/resend-verification', async (req, res) => {
     }
 });
 
+// 📝 Check Account Status Route (Temp Users)
+router.post('/check_account_status', async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        // 🔍 Check if email exists in temp_users
+        const result = await pool.query(
+            `SELECT * FROM temp_users WHERE email = $1`, 
+            [email]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(400).json({ error: '❌ No account found with this email.' });
+        }
+
+        const user = result.rows[0];
+
+        // 🔑 Check if the account is already verified
+        if (user.verification_token === null) {
+            return res.json({ success: true });
+        } else {
+            return res.status(400).json({ error: '⚠️ Account is not verified yet. Please check your inbox for the verification email.' });
+        }
+    } catch (error) {
+        console.error('❌ Check Account Status Error:', error);
+        return res.status(500).json({ error: '⚠️ Internal server error. Please try again.' });
+    }
+});
+
+// 📝 Verification Route to move user details to users table
+router.get('/:token', async (req, res) => {
+    const { token } = req.params;
+
+    try {
+        // 🔍 Find user by token
+        const result = await pool.query(
+            `SELECT id, full_name, username, email, phone_number, password_hash, location, token_expires_at 
+             FROM temp_users WHERE verification_token = $1`, 
+            [token]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(400).json({ error: "❌ Invalid or expired verification link." });
+        }
+
+        const user = result.rows[0];
+
+        // ⏳ Check if token expired
+        const expirationBuffer = 15 * 60 * 1000; // 15 minutes buffer
+        if (new Date(user.token_expires_at) + expirationBuffer < new Date()) {
+            return res.status(400).json({ error: "⏳ Token expired. Please register again." });
+        }
+
+        // 🔍 Check if the email or username is already registered
+        const existingUser = await pool.query(
+            `SELECT 1 FROM users WHERE email = $1 OR username = $2 LIMIT 1`, 
+            [user.email, user.username]
+        );
+
+        if (existingUser.rowCount > 0) {
+            return res.status(400).json({ error: "⚠️ Email or username already exists." });
+        }
+
+        // ✅ Move user to users table
+        await pool.query(`
+            INSERT INTO users (full_name, username, email, phone_number, password_hash, location, profile_picture, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, '/mxfiles/avatar.png'), NOW())
+        `, [user.full_name, user.username, user.email, user.phone_number, user.password_hash, user.location, '/mxfiles/avatar.png']);        
+
+        // Delete from temp_users after successful migration
+        await pool.query(`DELETE FROM temp_users WHERE id = $1`, [user.id]);
+
+        // 📩 Send Welcome Email (Run in background for speed)
+        transporter.sendMail({
+            from: process.env.SMTP_EMAIL,
+            to: user.email,
+            subject: '🎉 Welcome to MSWORLD!',
+            html: `Hello ${user.username}, <br><br>
+             Congratulations! 🎉 Your email has been successfully verified. <br><br>
+             You can now <a href="https://mxgamecoder.lovestoblog.com/login.html">log in</a> to access all MSWORLD features! <br><br>
+             🚀 Explore the community, connect with friends, and enjoy the MSWORLD experience. <br><br>
+             If you have any questions or need assistance, don't hesitate to reach out to our support team. We're here to help! <br><br>
+             We’re thrilled to have you on board! 🎉 <br><br>
+             - The MSWORLD Team`
+        }).catch(err => console.error("❌ Email failed:", err));
+
+        // 🔗 Redirect to login page
+        return res.redirect('https://mxgamecoder.lovestoblog.com/submit.html');  // Redirect to the login page
+
+    } catch (error) {
+        console.error('❌ Verification error:', error);
+        res.status(500).json({ error: "⚠️ Internal server error." });
+    }
+});
+
 module.exports = router;
