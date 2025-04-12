@@ -29,11 +29,12 @@ emailQueue.process(async (job) => {
 // 📝 Resend Verification Route
 router.post('/resend-verification', async (req, res) => {
     try {
-        const { email: usernameOrEmail, password } = req.body;
+        const { usernameOrEmail, password } = req.body;  // Use the consistent name
 
+        // Make sure to search for both email and username
         const result = await pool.query(
-          `SELECT * FROM temp_users WHERE email = $1 OR username = $1`,
-          [usernameOrEmail]
+            `SELECT * FROM temp_users WHERE email = $1 OR username = $1`, 
+            [usernameOrEmail]
         );
 
         if (result.rowCount === 0) {
