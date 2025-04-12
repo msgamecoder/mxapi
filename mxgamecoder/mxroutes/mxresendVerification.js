@@ -4,7 +4,7 @@ const pool = require('../mxconfig/mxdatabase'); // Database connection
 const bcrypt = require('bcryptjs'); // Use bcrypt for password comparison
 const crypto = require('crypto'); // For token generation
 const nodemailer = require('nodemailer');
-const { Queue } = require('bull'); // Async queue for background tasks
+const Bull = require('bull');  // Correct import
 require('dotenv').config();
 const VERIFICATION_URL = process.env.VERIFICATION_URL;
 
@@ -15,7 +15,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Create an email queue for background tasks
-const emailQueue = new Queue('emailQueue');
+const emailQueue = new Bull('emailQueue'); // Use Bull constructor instead
 
 // Email job processor
 emailQueue.process(async (job) => {
