@@ -6,6 +6,7 @@ const sanitizeFilename = require("sanitize-filename");
 const { sendEmailNotification } = require("./mxnotify");
 const { db, collection } = require("./mxfirebase-config");
 const { getDocs } = require("firebase/firestore");
+const pool = require("../mxconfig/mxdatabase"); // ✅ Correct way!
 
 const router = express.Router();
 const NOTIFICATION_DIR = path.join(__dirname, "../mxgamecodernot");
@@ -41,6 +42,16 @@ async function getNotificationsFromFirebase(username) {
   console.log(`Notifications fetched from Firebase: ${notifications.length}`);
   return notifications;
 }
+
+router.get("/users/all", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT username FROM users");
+    res.status(200).json(result.rows);
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ message: "Failed to fetch users." });
+  }
+}); 
 
 // ✅ GET ALL NOTIFICATIONS (no duplicates)
 router.get("/:username", async (req, res) => {
