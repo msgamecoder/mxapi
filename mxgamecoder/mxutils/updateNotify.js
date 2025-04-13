@@ -1,32 +1,30 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const pool = require('../mxconfig/mxdatabase');
-const { sendEmailNotification } = require('./mxnotify'); // assuming it's in root
+const { sendEmailNotification } = require("./mxnotify");
+const pool = require("../mxgamecoder/mxdatabase");
 
-router.post('/notify-users-update', async (req, res) => {
+router.post("/notify-users-update", async (req, res) => {
   try {
-    const { subject, message } = req.body;
+    const { title, message } = req.body;
 
-    if (!subject || !message) {
-      return res.status(400).json({ error: "Subject and message are required." });
+    if (!title || !message) {
+      return res.status(400).json({ error: "Title and message are required" });
     }
 
-    // Get all users from DB
-    const result = await pool.query('SELECT username, email, id FROM users');
+    const subject = `📢 New MSWORLD Update: ${title}`;
+    const emailMessage = `${message}<br><br><a href="https://msworld.infinityfreeapp.com/update.html" style="color: #007BFF;">Click here to view it</a>`;
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: "No users found." });
+    const usersQuery = await pool.query("SELECT username, email, id FROM users");
+    const users = usersQuery.rows;
+
+    for (const user of users) {
+      await sendEmailNotification(user.email, subject, emailMessage, user.username, user.id);
     }
 
-    for (const user of result.rows) {
-      const { username, email, id } = user;
-      await sendEmailNotification(email, subject, message, username, id);
-    }
-
-    return res.status(200).json({ message: "Emails sent to all users!" });
+    res.status(200).json({ message: "✅ Notifications sent to all users." });
   } catch (error) {
-    console.error("Error sending update notification:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    console.error("❌ Error notifying users:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
