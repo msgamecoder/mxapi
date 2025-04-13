@@ -31,7 +31,7 @@ function updateUserNotifications(username, updatedNotifications) {
   fs.writeFileSync(userFile, JSON.stringify({ notifications: updatedNotifications }, null, 2));
 }
 
-// Get notifications from Firebase for a user
+// Get notifications from Firebase for a user (only Firebase, no file system fetching)
 async function getNotificationsFromFirebase(username) {
   console.log(`Fetching notifications from Firebase for user: ${username}`);
   const notificationsSnapshot = await getDocs(collection(db, "notifications"));
