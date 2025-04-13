@@ -45,13 +45,19 @@ async function getNotificationsFromFirebase(username) {
 
 router.get("/users/all", async (req, res) => {
   try {
-    const result = await pool.query("SELECT username FROM users");
-    res.status(200).json(result.rows);
+    // Query to fetch all user details including username, email, location, bio, and phone_number
+    const result = await pool.query("SELECT username, email, location, bio, phone_number FROM users");
+    
+    // Return the result to the admin
+    res.status(200).json({
+      totalUsers: result.rowCount, // Total number of users
+      users: result.rows          // The list of users and their details
+    });
   } catch (error) {
     console.error("Error fetching users:", error);
     res.status(500).json({ message: "Failed to fetch users." });
   }
-}); 
+});
 
 // ✅ GET ALL NOTIFICATIONS (no duplicates)
 router.get("/:username", async (req, res) => {
