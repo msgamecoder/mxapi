@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { sendEmailNotification } = require("./mxnotify");
-const pool = require("../mxgamecoder/mxdatabase");
+const pool = require('../mxconfig/mxdatabase');
 
 router.post("/notify-users-update", async (req, res) => {
   try {
