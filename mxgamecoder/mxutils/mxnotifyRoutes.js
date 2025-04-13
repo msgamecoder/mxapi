@@ -31,7 +31,7 @@ function updateUserNotifications(username, updatedNotifications) {
   fs.writeFileSync(userFile, JSON.stringify({ notifications: updatedNotifications }, null, 2));
 }
 
-// Get notifications from Firebase for a user (only Firebase, no file system fetching)
+// Get notifications from Firebase for a user
 async function getNotificationsFromFirebase(username) {
   console.log(`Fetching notifications from Firebase for user: ${username}`);
   const notificationsSnapshot = await getDocs(collection(db, "notifications"));
@@ -58,6 +58,7 @@ router.get("/users/all", async (req, res) => {
     res.status(500).json({ message: "Failed to fetch users." });
   }
 });
+
 
 // ✅ GET ALL NOTIFICATIONS (no duplicates)
 router.get("/:username", async (req, res) => {
@@ -119,30 +120,22 @@ router.put("/read/:username", (req, res) => {
   }
 });
 
-// Serve a specific notification file (prefer Firebase data)
-router.get("/:username/:filename", async (req, res) => {
+// Serve a specific notification file (assuming files are stored locally)
+router.get("/:username/:filename", (req, res) => {
   const { username, filename } = req.params;
+
   console.log(`Fetching notification file for user: ${username}, filename: ${filename}`);
-
+  const userFile = getUserNotificationFile(username); // Path to the user's notifications
+  
   try {
-    // First, try fetching from Firebase
-    const notifications = await getNotificationsFromFirebase(username);
-    const notification = notifications.find((notif) => notif.filename === filename);
-
-    if (notification) {
-      return res.status(200).json({ notification });
-    }
-
-    // If not found in Firebase, fallback to local files
-    const userFile = getUserNotificationFile(username);
     const data = JSON.parse(fs.readFileSync(userFile, "utf-8"));
-    const localNotification = data.notifications.find((notif) => notif.filename === filename);
+    const notification = data.notifications.find((notif) => notif.filename === filename);
 
-    if (localNotification) {
-      return res.status(200).json({ notification: localNotification });
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found." });
     }
 
-    return res.status(404).json({ message: "Notification not found." });
+    res.status(200).json({ notification });
   } catch (err) {
     console.error("❌ Error reading notification file:", err);
     res.status(500).json({ message: "Failed to retrieve notification." });
