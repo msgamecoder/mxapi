@@ -65,7 +65,7 @@ const mxnotifyRoutes = require("./mxgamecoder/mxutils/mxnotifyRoutes");
 app.use("/mx/notifications", mxnotifyRoutes);
 
 const updateNotify = require("./mxgamecoder/mxutils/updateNotify");
-app.use("/mx/notifications", updateNotify);
+app.use("/mx", updateNotify);
 
 
 // Start Server
