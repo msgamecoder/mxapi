@@ -12,7 +12,7 @@ router.post("/notify-users-update", async (req, res) => {
     }
 
     const subject = `📢 New MSWORLD Update: ${title}`;
-    const emailMessage = `${message}<br><br><a href="https://msworld.infinityfreeapp.com/update.html" style="color: #007BFF;">Click here to view it</a>`;
+    const emailMessage = `${message}<br><br><a href="https://mxgamecoder.lovestoblog.com/mxupdate.html" style="color: #007BFF;">Click here to view it</a>`;
 
     const usersQuery = await pool.query("SELECT username, email, id FROM users");
     const users = usersQuery.rows;
