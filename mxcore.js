@@ -8,6 +8,13 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
+const corsOptions = {
+    origin: ['http://127.0.0.1:5500', 'https://mxgamecoder.lovestoblog.com'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    optionsSuccessStatus: 200
+};
 app.use(cors()); // Allow frontend to communicate with backend
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
