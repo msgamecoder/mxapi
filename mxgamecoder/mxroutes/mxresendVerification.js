@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs'); // Use bcrypt for password comparison
 const crypto = require('crypto'); // For token generation
 const nodemailer = require('nodemailer');
 require('dotenv').config();
-const getWorkingAPI = require('../mxconfig/mxapi'); // <- New dynamic API handler
+const { getWorkingAPI } = require('../mxconfig/mxapi'); 
 
 // Configure the mailer
 const transporter = nodemailer.createTransport({
@@ -51,9 +51,10 @@ router.post('/resend-verification', async (req, res) => {
             [verificationToken, tokenExpiresAt, user.id]
         );
 
-        // 🌐 Get Working API for Verification Link
-               const apiUrl = await getWorkingAPI();
-               const verificationLink = `${apiUrl}/${verificationToken}`;
+        const apiUrl = await getWorkingAPI();
+        console.log('API URL:', apiUrl); // Check the returned API URL
+        const verificationLink = `${apiUrl}/${verificationToken}`;
+        console.log('Verification Link:', verificationLink); // Check the full link        
 
         // 📩 Send Verification Email with improvements
         const mailOptions = {
@@ -89,6 +90,7 @@ router.post('/resend-verification', async (req, res) => {
         return res.json({ message: '✅ Verification email has been resent. Please check your inbox.' });
 
     } catch (error) {
+        console.error("Error during resend verification:", error);
         return res.status(500).json({ error: '⚠️ Internal server error. Please try again.' });
     }
 });
