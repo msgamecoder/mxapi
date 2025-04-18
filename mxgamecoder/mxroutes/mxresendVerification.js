@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs'); // Use bcrypt for password comparison
 const crypto = require('crypto'); // For token generation
 const nodemailer = require('nodemailer');
 require('dotenv').config();
-const VERIFICATION_URL = process.env.VERIFICATION_URL;
+const getWorkingAPI = require('../mxconfig/mxapi'); // <- New dynamic API handler
 
 // Configure the mailer
 const transporter = nodemailer.createTransport({
@@ -51,7 +51,9 @@ router.post('/resend-verification', async (req, res) => {
             [verificationToken, tokenExpiresAt, user.id]
         );
 
-        const verificationLink = `${VERIFICATION_URL}/${verificationToken}`;
+        // 🌐 Get Working API for Verification Link
+               const apiUrl = await getWorkingAPI();
+               const verificationLink = `${apiUrl}/${verificationToken}`;
 
         // 📩 Send Verification Email with improvements
         const mailOptions = {

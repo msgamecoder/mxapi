@@ -1,12 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../mxconfig/mxdatabase'); // Database connection
+const pool = require('../mxconfig/mxdatabase');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const getWorkingAPI = require('../mxconfig/mxapi'); // <- New dynamic API handler
 require('dotenv').config();
-
-const VERIFICATION_URL = process.env.VERIFICATION_URL;
 
 // ✉️ Email Transporter Setup
 const transporter = nodemailer.createTransport({
@@ -49,8 +48,11 @@ router.post('/', async (req, res) => {
             [full_name, username, email, phone_number, passwordHash, location, dob, verificationToken, tokenExpiresAt]
         );
 
+        // 🌐 Get Working API for Verification Link
+        const apiUrl = await getWorkingAPI();
+        const verificationLink = `${apiUrl}/${verificationToken}`;
+
         // 📩 Send Verification Email
-        const verificationLink = `${VERIFICATION_URL}/${verificationToken}`;
         try {
             await transporter.sendMail({
                 from: process.env.SMTP_EMAIL,
