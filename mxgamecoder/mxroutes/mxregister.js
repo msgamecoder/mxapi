@@ -4,7 +4,7 @@ const pool = require('../mxconfig/mxdatabase');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
-const getWorkingAPI = require('../mxconfig/mxapi'); // <- New dynamic API handler
+const { getWorkingAPI } = require('../mxconfig/mxapi'); 
 require('dotenv').config();
 
 // ✉️ Email Transporter Setup
