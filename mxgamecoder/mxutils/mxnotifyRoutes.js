@@ -1,17 +1,15 @@
+
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const sanitizeFilename = require("sanitize-filename");
 const { sendEmailNotification } = require("./mxnotify");
-const { getFirestore, collection, getDocs } = require("firebase/firestore"); // Updated import for Firebase Firestore
-const { db } = require("./mxfirebase-config"); // Assuming this provides the Firestore instance
+const { db, collection } = require("./mxfirebase-config");
+const { getDocs } = require("firebase/firestore");
 const pool = require("../mxconfig/mxdatabase"); // ✅ Correct way!
 
 const router = express.Router();
 const NOTIFICATION_DIR = path.join(__dirname, "../mxgamecodernot");
-
-// Initialize Firestore
-const firestore = getFirestore(db);
 
 // Get user notification file
 function getUserNotificationFile(username) {
@@ -36,8 +34,7 @@ function updateUserNotifications(username, updatedNotifications) {
 // Get notifications from Firebase for a user
 async function getNotificationsFromFirebase(username) {
   console.log(`Fetching notifications from Firebase for user: ${username}`);
-  const notificationsRef = collection(firestore, "notifications");
-  const notificationsSnapshot = await getDocs(notificationsRef);
+  const notificationsSnapshot = await getDocs(collection(db, "notifications"));
   const notifications = notificationsSnapshot.docs
     .map(doc => doc.data())
     .filter(notification => notification.username === username);
@@ -50,7 +47,7 @@ router.get("/users/all", async (req, res) => {
   try {
     // Query to fetch all user details including username, email, location, bio, and phone_number
     const result = await pool.query("SELECT username, email, location, bio, phone_number FROM users");
-
+    
     // Return the result to the admin
     res.status(200).json({
       totalUsers: result.rowCount, // Total number of users
@@ -61,6 +58,7 @@ router.get("/users/all", async (req, res) => {
     res.status(500).json({ message: "Failed to fetch users." });
   }
 });
+
 
 // ✅ GET ALL NOTIFICATIONS (no duplicates)
 router.get("/:username", async (req, res) => {
@@ -119,6 +117,28 @@ router.put("/read/:username", (req, res) => {
   } catch (err) {
     console.error("❌ Error marking notification as read:", err);
     res.status(500).json({ message: "Failed to update notification." });
+  }
+});
+
+// Serve a specific notification file (assuming files are stored locally)
+router.get("/:username/:filename", (req, res) => {
+  const { username, filename } = req.params;
+
+  console.log(`Fetching notification file for user: ${username}, filename: ${filename}`);
+  const userFile = getUserNotificationFile(username); // Path to the user's notifications
+  
+  try {
+    const data = JSON.parse(fs.readFileSync(userFile, "utf-8"));
+    const notification = data.notifications.find((notif) => notif.filename === filename);
+
+    if (!notification) {
+      return res.status(404).json({ message: "Notification not found." });
+    }
+
+    res.status(200).json({ notification });
+  } catch (err) {
+    console.error("❌ Error reading notification file:", err);
+    res.status(500).json({ message: "Failed to retrieve notification." });
   }
 });
 
