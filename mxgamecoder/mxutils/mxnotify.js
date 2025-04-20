@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 require("dotenv").config({ path: "../.env" });
 const sanitizeFilename = require("sanitize-filename");
-
+global.XMLHttpRequest = require('xhr2');
 const { db, collection } = require("./mxfirebase-config");
 const { addDoc } = require("firebase/firestore");
 
