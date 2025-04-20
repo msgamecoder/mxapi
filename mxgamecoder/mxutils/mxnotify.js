@@ -1,22 +1,11 @@
 const nodemailer = require("nodemailer");
-const fs = require("fs");
-const path = require("path");
 require("dotenv").config({ path: "../.env" });
-const sanitizeFilename = require("sanitize-filename");
-
-const { db, collection } = require("./mxfirebase-config");
-const { addDoc } = require("firebase/firestore");
-
-const NOTIFICATION_DIR = path.join(__dirname, "../mxgamecodernot");
-
-// Ensure the main notification folder exists
-if (!fs.existsSync(NOTIFICATION_DIR)) {
-  console.log(`Creating notification directory: ${NOTIFICATION_DIR}`);
-  fs.mkdirSync(NOTIFICATION_DIR, { recursive: true });
-}
-
-// Prevent email spam (1-minute cooldown per user)
+const { getFirestore, collection, addDoc } = require("firebase/firestore"); // Updated import for Firebase Firestore
+const { db } = require("./mxfirebase-config"); // Assuming this provides the Firestore instance
 const emailCooldown = new Map();
+
+// Initialize Firestore
+const firestore = getFirestore(db);
 
 // Save notification to Firebase
 async function saveNotificationToFirebase(username, notification, uid) {
@@ -28,7 +17,8 @@ async function saveNotificationToFirebase(username, notification, uid) {
       return; // Exit if UID is not valid
     }
 
-    await addDoc(collection(db, "notifications"), {
+    const notificationsRef = collection(firestore, "notifications");
+    await addDoc(notificationsRef, {
       username: username,
       uid: uid,  // Ensure UID is passed here
       ...notification,
@@ -43,9 +33,8 @@ async function saveNotificationToFirebase(username, notification, uid) {
 // MAIN FUNCTION TO SEND EMAIL AND LOG NOTIFICATION
 const sendEmailNotification = async (userEmail, subject, message, username, uid) => {
   try {
-    // Debugging: Check UID value before proceeding
     console.log("Inside sendEmailNotification - UID:", uid);
-
+    
     if (!uid) {
       console.error("❌ UID is undefined in sendEmailNotification.");
       return; // Exit early if UID is undefined
@@ -62,33 +51,14 @@ const sendEmailNotification = async (userEmail, subject, message, username, uid)
     emailCooldown.set(userEmail, now);
 
     // 🔐 Safe username and paths
-    const safeUsername = sanitizeFilename(username);
-    const userFolder = path.join(NOTIFICATION_DIR, safeUsername);
-
-    if (!fs.existsSync(userFolder)) {
-      console.log(`Creating folder for user notifications: ${userFolder}`);
-      fs.mkdirSync(userFolder, { recursive: true });
-    }
-
-    const timestamp = new Date().toISOString().replace(/:/g, "-");
-    const filename = `${timestamp}.txt`;
-    const logFile = path.join(userFolder, filename);
-    const logMessage = `📩 Email sent to: ${userEmail}\nSubject: ${subject}\nMessage: ${message}\nTime: ${new Date().toLocaleString()}\n\n`;
-
-    // 🔥 Save TXT version
-    fs.appendFileSync(logFile, logMessage);
-    console.log(`📄 Notification saved: ${logFile}`);
-
-    // 🔥 Save notification to Firebase
     const notification = {
       title: subject,
       message: message,
       time: new Date().toLocaleString(),
       read: false,
-      filename: filename,
     };
 
-    // Save to Firebase
+    // 🔥 Save to Firebase
     await saveNotificationToFirebase(username, notification, uid);
 
     // 🔐 Send email using Gmail
