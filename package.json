@@ -25,6 +25,7 @@
     "nodemailer": "^6.10.0",
     "pg": "^8.14.1",
     "puppeteer": "^24.4.0",
+    "resend": "^4.3.0",
     "node-fetch": "^3.3.2",
     "sanitize-filename": "^1.6.3"
   }
