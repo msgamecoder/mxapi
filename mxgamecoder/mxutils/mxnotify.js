@@ -9,37 +9,14 @@ const { addDoc } = require("firebase/firestore");
 
 const NOTIFICATION_DIR = path.join(__dirname, "../mxgamecodernot");
 
-// 🔥 Ensure the main notification folder exists
+// Ensure the main notification folder exists
 if (!fs.existsSync(NOTIFICATION_DIR)) {
   console.log(`Creating notification directory: ${NOTIFICATION_DIR}`);
   fs.mkdirSync(NOTIFICATION_DIR, { recursive: true });
 }
 
-// 🛑 Prevent email spam (1-minute cooldown per user)
+// Prevent email spam (1-minute cooldown per user)
 const emailCooldown = new Map();
-
-// Get the JSON file for the user's notifications
-function getUserNotificationFile(username) {
-  const safeUsername = sanitizeFilename(username);
-  const userFile = path.join(NOTIFICATION_DIR, `${safeUsername}_notifications.json`);
-
-  console.log(`Checking for notification file: ${userFile}`);
-  if (!fs.existsSync(userFile)) {
-    console.log(`Notification file not found for ${username}. Creating new one.`);
-    fs.writeFileSync(userFile, JSON.stringify({ notifications: [] }));
-  }
-
-  return userFile;
-}
-
-// Save or update notification JSON
-function saveNotificationToJson(username, notification) {
-  const userFile = getUserNotificationFile(username);
-  const data = JSON.parse(fs.readFileSync(userFile, "utf-8"));
-  data.notifications.push(notification);
-  fs.writeFileSync(userFile, JSON.stringify(data, null, 2));
-  console.log(`Notification saved to JSON for user: ${username}`);
-}
 
 // Save notification to Firebase
 async function saveNotificationToFirebase(username, notification, uid) {
@@ -68,7 +45,7 @@ const sendEmailNotification = async (userEmail, subject, message, username, uid)
   try {
     // Debugging: Check UID value before proceeding
     console.log("Inside sendEmailNotification - UID:", uid);
-    
+
     if (!uid) {
       console.error("❌ UID is undefined in sendEmailNotification.");
       return; // Exit early if UID is undefined
@@ -102,7 +79,7 @@ const sendEmailNotification = async (userEmail, subject, message, username, uid)
     fs.appendFileSync(logFile, logMessage);
     console.log(`📄 Notification saved: ${logFile}`);
 
-    // 🔥 Save JSON version
+    // 🔥 Save notification to Firebase
     const notification = {
       title: subject,
       message: message,
@@ -110,9 +87,8 @@ const sendEmailNotification = async (userEmail, subject, message, username, uid)
       read: false,
       filename: filename,
     };
-    saveNotificationToJson(username, notification);
 
-    // 🔥 Save to Firebase
+    // Save to Firebase
     await saveNotificationToFirebase(username, notification, uid);
 
     // 🔐 Send email using Gmail
@@ -131,7 +107,7 @@ const sendEmailNotification = async (userEmail, subject, message, username, uid)
     const mailOptions = {
       from: `"MSWORLD Support Team" <${process.env.SMTP_EMAIL}>`,
       to: userEmail,
-      replyTo: process.env.SMTP_EMAIL, // ← Use same email for now
+      replyTo: process.env.SMTP_EMAIL,
       subject: subject,
       html: `<div style="font-family: Arial, sans-serif; padding: 10px; background: #f4f4f4; border-radius: 5px;">
                <h2 style="color: #333;">${subject}</h2>
@@ -153,8 +129,4 @@ const sendEmailNotification = async (userEmail, subject, message, username, uid)
   }
 };
 
-const generateFrontendNotification = (type, message) => {
-  return { type, message };
-};
-
-module.exports = { sendEmailNotification, generateFrontendNotification };
+module.exports = { sendEmailNotification };
