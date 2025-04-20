@@ -4,6 +4,7 @@ const path = require("path");
 require("dotenv").config({ path: "../.env" });
 const sanitizeFilename = require("sanitize-filename");
 global.XMLHttpRequest = require('xhr2');
+const axios = require('axios');
 const { db, collection } = require("./mxfirebase-config");
 const { addDoc } = require("firebase/firestore");
 
@@ -64,9 +65,6 @@ async function saveNotificationToFirebase(username, notification, uid) {
 }
 
 // MAIN FUNCTION TO SEND EMAIL AND LOG NOTIFICATION
-const emailjs = require('emailjs-com');
-emailjs.init("QaqIhozzJLcyGORgz"); // Public Key
-
 const sendEmailNotification = async (userEmail, subject, message, username, uid) => {
   try {
     if (!uid) {
@@ -103,15 +101,25 @@ const sendEmailNotification = async (userEmail, subject, message, username, uid)
     saveNotificationToJson(username, notification);
     await saveNotificationToFirebase(username, notification, uid);
 
-    // 🚀 Send with EmailJS
+    // 🚀 Send with EmailJS using Axios
     const emailParams = {
-      subject: subject,
-      message: message,
-      email: userEmail
+      service_id: "service_3w7fink",
+      template_id: "template_0v6tyoa",
+      user_id: process.env.EMAILJS_USER_ID,  // Use your EmailJS user ID from environment variables
+      template_params: {
+        subject: subject,
+        message: message,
+        email: userEmail,
+      },
     };
 
-    await emailjs.send("service_3w7fink", "template_0v6tyoa", emailParams);
-    console.log(`📩 EmailJS sent to ${userEmail}`);
+    const response = await axios.post('https://api.emailjs.com/api/v1.0/email/send', emailParams, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    console.log(`📩 Email sent successfully: ${response.data}`);
   } catch (error) {
     console.error("❌ EmailJS error:", error);
   }
