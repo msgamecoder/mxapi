@@ -3,8 +3,7 @@ const fs = require("fs");
 const path = require("path");
 require("dotenv").config({ path: "../.env" });
 const sanitizeFilename = require("sanitize-filename");
-global.XMLHttpRequest = require('xhr2');
-const axios = require('axios');
+
 const { db, collection } = require("./mxfirebase-config");
 const { addDoc } = require("firebase/firestore");
 
@@ -67,29 +66,43 @@ async function saveNotificationToFirebase(username, notification, uid) {
 // MAIN FUNCTION TO SEND EMAIL AND LOG NOTIFICATION
 const sendEmailNotification = async (userEmail, subject, message, username, uid) => {
   try {
+    // Debugging: Check UID value before proceeding
+    console.log("Inside sendEmailNotification - UID:", uid);
+    
     if (!uid) {
-      console.error("❌ UID is undefined.");
-      return;
+      console.error("❌ UID is undefined in sendEmailNotification.");
+      return; // Exit early if UID is undefined
     }
 
     const now = Date.now();
     if (emailCooldown.has(userEmail)) {
       const lastSent = emailCooldown.get(userEmail);
-      if (now - lastSent < 1 * 60 * 1000) return;
+      if (now - lastSent < 1 * 60 * 1000) {
+        console.log("⏳ Email not sent (cooldown active)");
+        return;
+      }
     }
     emailCooldown.set(userEmail, now);
 
+    // 🔐 Safe username and paths
     const safeUsername = sanitizeFilename(username);
     const userFolder = path.join(NOTIFICATION_DIR, safeUsername);
-    if (!fs.existsSync(userFolder)) fs.mkdirSync(userFolder, { recursive: true });
+
+    if (!fs.existsSync(userFolder)) {
+      console.log(`Creating folder for user notifications: ${userFolder}`);
+      fs.mkdirSync(userFolder, { recursive: true });
+    }
 
     const timestamp = new Date().toISOString().replace(/:/g, "-");
     const filename = `${timestamp}.txt`;
     const logFile = path.join(userFolder, filename);
     const logMessage = `📩 Email sent to: ${userEmail}\nSubject: ${subject}\nMessage: ${message}\nTime: ${new Date().toLocaleString()}\n\n`;
 
+    // 🔥 Save TXT version
     fs.appendFileSync(logFile, logMessage);
+    console.log(`📄 Notification saved: ${logFile}`);
 
+    // 🔥 Save JSON version
     const notification = {
       title: subject,
       message: message,
@@ -97,31 +110,46 @@ const sendEmailNotification = async (userEmail, subject, message, username, uid)
       read: false,
       filename: filename,
     };
-
     saveNotificationToJson(username, notification);
+
+    // 🔥 Save to Firebase
     await saveNotificationToFirebase(username, notification, uid);
 
-    // 🚀 Send with EmailJS using Axios
-    const emailParams = {
-      service_id: "service_3w7fink",
-      template_id: "template_0v6tyoa",
-      user_id: process.env.EMAILJS_USER_ID,  // Use your EmailJS user ID from environment variables
-      template_params: {
-        subject: subject,
-        message: message,
-        email: userEmail,
+    // 🔐 Send email using Gmail
+    let transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.SMTP_EMAIL,
+        pass: process.env.SMTP_PASSWORD,
       },
-    };
-
-    const response = await axios.post('https://api.emailjs.com/api/v1.0/email/send', emailParams, {
-      headers: {
-        'Content-Type': 'application/json',
+      secure: true,
+      tls: {
+        rejectUnauthorized: false,
       },
     });
 
-    console.log(`📩 Email sent successfully: ${response.data}`);
+    const mailOptions = {
+      from: `"MSWORLD Support Team" <${process.env.SMTP_EMAIL}>`,
+      to: userEmail,
+      replyTo: process.env.SMTP_EMAIL, // ← Use same email for now
+      subject: subject,
+      html: `<div style="font-family: Arial, sans-serif; padding: 10px; background: #f4f4f4; border-radius: 5px;">
+               <h2 style="color: #333;">${subject}</h2>
+               <p style="color: #555;">${message}</p>
+               <hr>
+               <small style="color: #888;">If you didn't request this, you can ignore this email.</small>
+             </div>`,
+      headers: {
+        "X-Priority": "1 (Highest)",
+        "X-MSMail-Priority": "High",
+        "Importance": "High",
+      },
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`📩 Email sent to ${userEmail}: ${subject}`);
   } catch (error) {
-    console.error("❌ EmailJS error:", error);
+    console.error("❌ Email notification error:", error);
   }
 };
 
