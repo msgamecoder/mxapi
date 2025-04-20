@@ -64,45 +64,34 @@ async function saveNotificationToFirebase(username, notification, uid) {
 }
 
 // MAIN FUNCTION TO SEND EMAIL AND LOG NOTIFICATION
+const emailjs = require('emailjs-com');
+emailjs.init("QaqIhozzJLcyGORgz"); // Public Key
+
 const sendEmailNotification = async (userEmail, subject, message, username, uid) => {
   try {
-    // Debugging: Check UID value before proceeding
-    console.log("Inside sendEmailNotification - UID:", uid);
-    
     if (!uid) {
-      console.error("❌ UID is undefined in sendEmailNotification.");
-      return; // Exit early if UID is undefined
+      console.error("❌ UID is undefined.");
+      return;
     }
 
     const now = Date.now();
     if (emailCooldown.has(userEmail)) {
       const lastSent = emailCooldown.get(userEmail);
-      if (now - lastSent < 1 * 60 * 1000) {
-        console.log("⏳ Email not sent (cooldown active)");
-        return;
-      }
+      if (now - lastSent < 1 * 60 * 1000) return;
     }
     emailCooldown.set(userEmail, now);
 
-    // 🔐 Safe username and paths
     const safeUsername = sanitizeFilename(username);
     const userFolder = path.join(NOTIFICATION_DIR, safeUsername);
-
-    if (!fs.existsSync(userFolder)) {
-      console.log(`Creating folder for user notifications: ${userFolder}`);
-      fs.mkdirSync(userFolder, { recursive: true });
-    }
+    if (!fs.existsSync(userFolder)) fs.mkdirSync(userFolder, { recursive: true });
 
     const timestamp = new Date().toISOString().replace(/:/g, "-");
     const filename = `${timestamp}.txt`;
     const logFile = path.join(userFolder, filename);
     const logMessage = `📩 Email sent to: ${userEmail}\nSubject: ${subject}\nMessage: ${message}\nTime: ${new Date().toLocaleString()}\n\n`;
 
-    // 🔥 Save TXT version
     fs.appendFileSync(logFile, logMessage);
-    console.log(`📄 Notification saved: ${logFile}`);
 
-    // 🔥 Save JSON version
     const notification = {
       title: subject,
       message: message,
@@ -110,46 +99,21 @@ const sendEmailNotification = async (userEmail, subject, message, username, uid)
       read: false,
       filename: filename,
     };
-    saveNotificationToJson(username, notification);
 
-    // 🔥 Save to Firebase
+    saveNotificationToJson(username, notification);
     await saveNotificationToFirebase(username, notification, uid);
 
-    // 🔐 Send email using Gmail
-    let transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.SMTP_EMAIL,
-        pass: process.env.SMTP_PASSWORD,
-      },
-      secure: true,
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
-
-    const mailOptions = {
-      from: `"MSWORLD Support Team" <${process.env.SMTP_EMAIL}>`,
-      to: userEmail,
-      replyTo: process.env.SMTP_EMAIL, // ← Use same email for now
+    // 🚀 Send with EmailJS
+    const emailParams = {
       subject: subject,
-      html: `<div style="font-family: Arial, sans-serif; padding: 10px; background: #f4f4f4; border-radius: 5px;">
-               <h2 style="color: #333;">${subject}</h2>
-               <p style="color: #555;">${message}</p>
-               <hr>
-               <small style="color: #888;">If you didn't request this, you can ignore this email.</small>
-             </div>`,
-      headers: {
-        "X-Priority": "1 (Highest)",
-        "X-MSMail-Priority": "High",
-        "Importance": "High",
-      },
+      message: message,
+      email: userEmail
     };
 
-    await transporter.sendMail(mailOptions);
-    console.log(`📩 Email sent to ${userEmail}: ${subject}`);
+    await emailjs.send("service_3w7fink", "template_0v6tyoa", emailParams);
+    console.log(`📩 EmailJS sent to ${userEmail}`);
   } catch (error) {
-    console.error("❌ Email notification error:", error);
+    console.error("❌ EmailJS error:", error);
   }
 };
 
