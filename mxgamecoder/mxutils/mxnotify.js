@@ -1,11 +1,13 @@
-const nodemailer = require("nodemailer");
 const fs = require("fs");
 const path = require("path");
-require("dotenv").config({ path: "../.env" });
 const sanitizeFilename = require("sanitize-filename");
+require("dotenv").config({ path: "../.env" });
 
 const { db, collection } = require("./mxfirebase-config");
 const { addDoc } = require("firebase/firestore");
+const { Resend } = require("resend");
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const NOTIFICATION_DIR = path.join(__dirname, "../mxgamecodernot");
 
@@ -23,9 +25,7 @@ function getUserNotificationFile(username) {
   const safeUsername = sanitizeFilename(username);
   const userFile = path.join(NOTIFICATION_DIR, `${safeUsername}_notifications.json`);
 
-  console.log(`Checking for notification file: ${userFile}`);
   if (!fs.existsSync(userFile)) {
-    console.log(`Notification file not found for ${username}. Creating new one.`);
     fs.writeFileSync(userFile, JSON.stringify({ notifications: [] }));
   }
 
@@ -38,25 +38,23 @@ function saveNotificationToJson(username, notification) {
   const data = JSON.parse(fs.readFileSync(userFile, "utf-8"));
   data.notifications.push(notification);
   fs.writeFileSync(userFile, JSON.stringify(data, null, 2));
-  console.log(`Notification saved to JSON for user: ${username}`);
 }
 
 // Save notification to Firebase
 async function saveNotificationToFirebase(username, notification, uid) {
   try {
-    console.log("UID before saving to Firebase:", uid); // Debugging: Check UID value
-
     if (!uid) {
       console.error("❌ UID is undefined. Cannot save notification to Firebase.");
-      return; // Exit if UID is not valid
+      return;
     }
 
     await addDoc(collection(db, "notifications"), {
       username: username,
-      uid: uid,  // Ensure UID is passed here
+      uid: uid,
       ...notification,
       createdAt: new Date(),
     });
+
     console.log("📲 Notification saved to Firebase.");
   } catch (error) {
     console.error("❌ Error saving notification to Firebase:", error);
@@ -66,12 +64,9 @@ async function saveNotificationToFirebase(username, notification, uid) {
 // MAIN FUNCTION TO SEND EMAIL AND LOG NOTIFICATION
 const sendEmailNotification = async (userEmail, subject, message, username, uid) => {
   try {
-    // Debugging: Check UID value before proceeding
-    console.log("Inside sendEmailNotification - UID:", uid);
-    
     if (!uid) {
       console.error("❌ UID is undefined in sendEmailNotification.");
-      return; // Exit early if UID is undefined
+      return;
     }
 
     const now = Date.now();
@@ -84,12 +79,10 @@ const sendEmailNotification = async (userEmail, subject, message, username, uid)
     }
     emailCooldown.set(userEmail, now);
 
-    // 🔐 Safe username and paths
     const safeUsername = sanitizeFilename(username);
     const userFolder = path.join(NOTIFICATION_DIR, safeUsername);
 
     if (!fs.existsSync(userFolder)) {
-      console.log(`Creating folder for user notifications: ${userFolder}`);
       fs.mkdirSync(userFolder, { recursive: true });
     }
 
@@ -98,11 +91,8 @@ const sendEmailNotification = async (userEmail, subject, message, username, uid)
     const logFile = path.join(userFolder, filename);
     const logMessage = `📩 Email sent to: ${userEmail}\nSubject: ${subject}\nMessage: ${message}\nTime: ${new Date().toLocaleString()}\n\n`;
 
-    // 🔥 Save TXT version
     fs.appendFileSync(logFile, logMessage);
-    console.log(`📄 Notification saved: ${logFile}`);
 
-    // 🔥 Save JSON version
     const notification = {
       title: subject,
       message: message,
@@ -110,28 +100,14 @@ const sendEmailNotification = async (userEmail, subject, message, username, uid)
       read: false,
       filename: filename,
     };
-    saveNotificationToJson(username, notification);
 
-    // 🔥 Save to Firebase
+    saveNotificationToJson(username, notification);
     await saveNotificationToFirebase(username, notification, uid);
 
-    // 🔐 Send email using Gmail
-    let transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.SMTP_EMAIL,
-        pass: process.env.SMTP_PASSWORD,
-      },
-      secure: true,
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
-
-    const mailOptions = {
-      from: `"MSWORLD Support Team" <${process.env.SMTP_EMAIL}>`,
+    // ✅ Send Email via Resend
+    await resend.emails.send({
+      from: 'MSWORLD <onboarding@resend.dev>', // Replace after verifying your domain
       to: userEmail,
-      replyTo: process.env.SMTP_EMAIL, // ← Use same email for now
       subject: subject,
       html: `<div style="font-family: Arial, sans-serif; padding: 10px; background: #f4f4f4; border-radius: 5px;">
                <h2 style="color: #333;">${subject}</h2>
@@ -139,14 +115,8 @@ const sendEmailNotification = async (userEmail, subject, message, username, uid)
                <hr>
                <small style="color: #888;">If you didn't request this, you can ignore this email.</small>
              </div>`,
-      headers: {
-        "X-Priority": "1 (Highest)",
-        "X-MSMail-Priority": "High",
-        "Importance": "High",
-      },
-    };
+    });
 
-    await transporter.sendMail(mailOptions);
     console.log(`📩 Email sent to ${userEmail}: ${subject}`);
   } catch (error) {
     console.error("❌ Email notification error:", error);
