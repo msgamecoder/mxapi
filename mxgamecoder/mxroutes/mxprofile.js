@@ -61,9 +61,9 @@ router.put("/profile", verifyToken, async (req, res) => {
       FROM users
       WHERE id = $1
     `;
-    const result = await mxdatabase.query(checkQuery, [userId]);
+    const checkResult = await mxdatabase.query(checkQuery, [userId]); // Renamed to checkResult
     
-    const lastChangeTimestamp = result.rows[0]?.last_username_change;
+    const lastChangeTimestamp = checkResult.rows[0]?.last_username_change;
     const now = Date.now();
     const cooldownTime = 1 * 60 * 1000; // 1 minute cooldown in milliseconds
 
@@ -92,11 +92,11 @@ router.put("/profile", verifyToken, async (req, res) => {
         RETURNING username, email, phone_number AS phone, location, bio, profile_picture;
       `;
 
-      const result = await mxdatabase.query(updateQuery, [bio, userId]);
+      const updateResult = await mxdatabase.query(updateQuery, [bio, userId]); // Renamed to updateResult
 
       return res.status(200).json({
         message: "✅ Bio updated successfully",
-        user: result.rows[0],
+        user: updateResult.rows[0],
       });
     }
 
@@ -110,7 +110,7 @@ router.put("/profile", verifyToken, async (req, res) => {
       RETURNING username, email, phone_number AS phone, location, bio, profile_picture;
     `;
 
-    const result = await mxdatabase.query(updateQuery, [
+    const updateResult = await mxdatabase.query(updateQuery, [
       username,
       phone,
       location,
@@ -122,7 +122,7 @@ router.put("/profile", verifyToken, async (req, res) => {
 
     res.status(200).json({
       message: "✅ Profile updated",
-      user: result.rows[0],
+      user: updateResult.rows[0],
     });
   } catch (error) {
     console.error("Update error:", error);
