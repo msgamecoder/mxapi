@@ -188,6 +188,7 @@ router.get("/profile", verifyToken, async (req, res) => {
 });
 
 // PUT /change-name
+// PUT /change-name
 router.put("/change-name", verifyToken, async (req, res) => {
   try {
     const { userId } = req;
@@ -198,7 +199,7 @@ router.put("/change-name", verifyToken, async (req, res) => {
       return res.status(400).json({ message: "Name is required" });
     }
 
-    const userQuery = `SELECT name, last_name_change FROM users WHERE id = $1`;
+    const userQuery = `SELECT full_name, last_name_change FROM users WHERE id = $1`;
     const result = await mxdatabase.query(userQuery, [userId]);
     const user = result.rows[0];
 
@@ -206,11 +207,11 @@ router.put("/change-name", verifyToken, async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (name === user.name) {
+    if (name === user.full_name) {
       return res.status(400).json({ message: "New name is the same as current one" });
     }
 
-    const cooldownTime = 1 * 60 * 1000; // 1 minute for testing
+    const cooldownTime = 1 * 60 * 1000;
     if (user.last_name_change && now - user.last_name_change < cooldownTime) {
       const secondsLeft = Math.ceil((cooldownTime - (now - user.last_name_change)) / 1000);
       return res.status(400).json({ message: `Wait ${secondsLeft}s before changing your name again.` });
@@ -218,13 +219,13 @@ router.put("/change-name", verifyToken, async (req, res) => {
 
     const updateQuery = `
       UPDATE users
-      SET name = $1, last_name_change = $2
+      SET full_name = $1, last_name_change = $2
       WHERE id = $3
-      RETURNING name;
+      RETURNING full_name;
     `;
     const updateResult = await mxdatabase.query(updateQuery, [name, now, userId]);
 
-    res.status(200).json({ message: "✅ Name updated", name: updateResult.rows[0].name });
+    res.status(200).json({ message: "✅ Name updated", full_name: updateResult.rows[0].full_name });
   } catch (err) {
     console.error("Change name error:", err);
     res.status(500).json({ message: "Server error" });
