@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
 const mxdatabase = require("../mxconfig/mxdatabase");
-const fetch = require("node-fetch");  // Add this to make HTTP requests for URL validation
+const fetch = require("node-fetch");
 require("dotenv").config();
 
 // JWT Middleware
@@ -17,28 +17,20 @@ function verifyToken(req, res, next) {
   });
 }
 
-// Forbidden domains to block
-const forbiddenDomains = ['xvideos.com', 'xnxx.com', 'pornhub.com']; // Add any domains you want to block
+const forbiddenDomains = ['xvideos.com', 'xnxx.com', 'pornhub.com'];
 
-// Function to validate URL
 async function validateUrl(url) {
   try {
-    // Check if URL is http/https
     if (!url.startsWith("http://") && !url.startsWith("https://")) {
       return { valid: false, message: "URL must start with http:// or https://" };
     }
 
-    // Get the domain from the URL
     const { hostname } = new URL(url);
-
-    // Check if the domain is forbidden
     if (forbiddenDomains.some(domain => hostname.includes(domain))) {
       return { valid: false, message: "Forbidden domain detected" };
     }
 
-    // Send a HEAD request to the URL to check if it's reachable
     const response = await fetch(url, { method: "HEAD", mode: "no-cors" });
-
     if (!response.ok) {
       return { valid: false, message: `URL returned status ${response.status}` };
     }
@@ -49,94 +41,98 @@ async function validateUrl(url) {
   }
 }
 
-// PUT /mx/profile - Update profile or picture
 router.put("/profile", verifyToken, async (req, res) => {
   try {
     const { userId } = req;
-    const { username, phone, location, bio } = req.body;
-
-    // Check the cooldown for username change
-    const checkQuery = `
-      SELECT last_username_change
-      FROM users
-      WHERE id = $1
-    `;
-    const checkResult = await mxdatabase.query(checkQuery, [userId]); // Renamed to checkResult
-    
-    const lastChangeTimestamp = checkResult.rows[0]?.last_username_change;
+    const { username, phone_number, location, bio } = req.body;
     const now = Date.now();
-    const cooldownTime = 1 * 60 * 1000; // 1 minute cooldown in milliseconds
 
-    if (lastChangeTimestamp && now - lastChangeTimestamp < cooldownTime) {
-      return res.status(400).json({
-        message: `You can change your username again in ${Math.ceil((cooldownTime - (now - lastChangeTimestamp)) / 1000)} seconds.`,
-      });
+    // Fetch current user data
+    const userQuery = `SELECT username, phone_number, location, bio, profile_picture, last_username_change FROM users WHERE id = $1`;
+    const userResult = await mxdatabase.query(userQuery, [userId]);
+    const currentUser = userResult.rows[0];
+
+    if (!currentUser) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    // If bio is provided along with other fields (username, phone, etc.)
+    // Username update validation
+    if (username && username !== currentUser.username) {
+      const cooldownTime = 1 * 60 * 1000;
+      if (currentUser.last_username_change && now - currentUser.last_username_change < cooldownTime) {
+        const secondsLeft = Math.ceil((cooldownTime - (now - currentUser.last_username_change)) / 1000);
+        return res.status(400).json({ message: `You can change your username again in ${secondsLeft} seconds.` });
+      }
+
+      // Check if username exists in users or temp_user
+      const usernameCheckQuery = `
+        SELECT 1 FROM users WHERE username = $1
+        UNION
+        SELECT 1 FROM temp_user WHERE username = $1
+      `;
+      const usernameCheck = await mxdatabase.query(usernameCheckQuery, [username]);
+
+      if (usernameCheck.rows.length > 0) {
+        return res.status(409).json({ message: "Username already in use" });
+      }
+    } else if (username === currentUser.username) {
+      return res.status(400).json({ message: "New username cannot be the same as your current username" });
+    }
+
+    // Validate bio URLs
     if (bio) {
-      // Validate links in bio
       const urlRegex = /(https?:\/\/[^\s]+)/gi;
       const urls = bio.match(urlRegex) || [];
       for (const url of urls) {
         const { valid, message } = await validateUrl(url);
         if (!valid) {
-          return res.status(400).json({ message: `Invalid URL: ${message}` });
+          return res.status(400).json({ message: `Invalid URL in bio: ${message}` });
         }
       }
-
-      const updateQuery = `
-        UPDATE users
-        SET bio = $1
-        WHERE id = $2
-        RETURNING username, email, phone_number AS phone, location, bio, profile_picture;
-      `;
-
-      const updateResult = await mxdatabase.query(updateQuery, [bio, userId]); // Renamed to updateResult
-
-      return res.status(200).json({
-        message: "✅ Bio updated successfully",
-        user: updateResult.rows[0],
-      });
     }
 
-    // Proceed with updating the username and other fields
-    let cloudinaryUrl = req.file ? req.file.path : "/mxfiles/avatar.png";
+    // Use existing values if not provided
+    const finalUsername = username || currentUser.username;
+    const finalPhone = phone_number || currentUser.phone_number;
+    const finalLocation = location || currentUser.location;
+    const finalBio = bio || currentUser.bio;
+    const finalPicture = req.file ? req.file.path : currentUser.profile_picture;
 
+    // Update query
     const updateQuery = `
       UPDATE users
       SET username = $1, phone_number = $2, location = $3, bio = $4, profile_picture = $5, last_username_change = $6
       WHERE id = $7
-      RETURNING username, email, phone_number AS phone, location, bio, profile_picture;
+      RETURNING username, email, phone_number, location, bio, profile_picture;
     `;
 
     const updateResult = await mxdatabase.query(updateQuery, [
-      username,
-      phone,
-      location,
-      bio,
-      cloudinaryUrl,
-      now, // Store the current timestamp as the last username change time
+      finalUsername,
+      finalPhone,
+      finalLocation,
+      finalBio,
+      finalPicture,
+      now,
       userId,
     ]);
 
     res.status(200).json({
-      message: "✅ Profile updated",
+      message: "✅ Profile updated successfully",
       user: updateResult.rows[0],
     });
+
   } catch (error) {
     console.error("Update error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// GET user profile data
 router.get("/profile", verifyToken, async (req, res) => {
   try {
     const { userId } = req;
 
     const query = `
-      SELECT username, email, phone_number AS phone, location, bio, profile_picture, balance
+      SELECT username, email, phone_number, location, bio, profile_picture, balance
       FROM users
       WHERE id = $1
     `;
