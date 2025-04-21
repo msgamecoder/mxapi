@@ -87,4 +87,29 @@ router.put("/profile", verifyToken, upload.single("profile_picture"), async (req
   }
 });
 
+// GET user profile data
+router.get("/profile", verifyToken, async (req, res) => {
+  try {
+    const { userId } = req;
+
+    const query = `
+      SELECT username, email, phone_number AS phone, location, bio, profile_picture, balance
+      FROM users
+      WHERE id = $1
+    `;
+
+    const result = await mxdatabase.query(query, [userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error("Error fetching profile:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
 module.exports = router;
