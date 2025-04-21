@@ -37,28 +37,34 @@ const storage = new CloudinaryStorage({
 const upload = multer({ storage });
 
 // PUT /mx/profile - Update profile or picture
-router.put("/profile", verifyToken, upload.single("profile_picture"), async (req, res) => {
+router.put("/profile", verifyToken, async (req, res) => {
   try {
     const { userId } = req;
     const { username, phone, location, bio } = req.body;
 
-    // If only uploading profile picture
-    if (req.file && !username && !phone && !location && !bio) {
-      const cloudinaryUrl = req.file.path;
-      const updateQuery = `UPDATE users SET profile_picture = $1 WHERE id = $2 RETURNING profile_picture;`;
-      const result = await mxdatabase.query(updateQuery, [cloudinaryUrl, userId]);
+    // If bio is provided along with other fields (username, phone, etc.)
+    if (bio) {
+      const updateQuery = `
+        UPDATE users
+        SET bio = $1
+        WHERE id = $2
+        RETURNING username, email, phone_number AS phone, location, bio, profile_picture;
+      `;
+
+      const result = await mxdatabase.query(updateQuery, [bio, userId]);
 
       return res.status(200).json({
-        message: "✅ Profile picture updated",
+        message: "✅ Bio updated successfully",
         user: result.rows[0],
       });
     }
 
-    // Validate fields for full update
+    // If any required field (username, phone, location) is missing
     if (!username || !phone || !location || !bio) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
+    // Continue updating other fields like username, phone, etc.
     let cloudinaryUrl = req.file ? req.file.path : "/mxfiles/avatar.png";
 
     const updateQuery = `
@@ -110,6 +116,5 @@ router.get("/profile", verifyToken, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
 
 module.exports = router;
