@@ -250,5 +250,84 @@ router.get("/last-name-change", verifyToken, async (req, res) => {
   }
 });
 
+// PUT /change-email
+router.put("/change-email", verifyToken, async (req, res) => {
+    try {
+        const { userId } = req;
+        const { email } = req.body;
+        const now = Date.now();
+
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+
+        const userQuery = `SELECT email, last_email_change FROM users WHERE id = $1`;
+        const result = await mxdatabase.query(userQuery, [userId]);
+        const user = result.rows[0];
+
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        if (email === user.email) {
+            return res.status(400).json({ message: "New email is the same as the current one" });
+        }
+
+        const cooldownTime = 30 * 24 * 60 * 60 * 1000; // 30 days
+        if (user.last_email_change && now - user.last_email_change < cooldownTime) {
+            const secondsLeft = Math.ceil((cooldownTime - (now - user.last_email_change)) / 1000);
+            return res.status(400).json({ message: `Wait ${secondsLeft}s before changing your email again.` });
+        }
+
+        const emailCheckQuery = `
+            SELECT 1 FROM users WHERE email = $1
+            UNION
+            SELECT 1 FROM temp_users WHERE email = $1
+        `;
+        const emailCheck = await mxdatabase.query(emailCheckQuery, [email]);
+
+        if (emailCheck.rows.length > 0) {
+            return res.status(409).json({ message: "Email already in use" });
+        }
+
+        const updateQuery = `
+            UPDATE users
+            SET email = $1, last_email_change = $2
+            WHERE id = $3
+            RETURNING email;
+        `;
+        const updateResult = await mxdatabase.query(updateQuery, [email, now, userId]);
+
+        res.status(200).json({ message: "✅ Email updated successfully", email: updateResult.rows[0].email });
+    } catch (err) {
+        console.error("Change email error:", err);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// POST /check-email
+router.post("/check-email", verifyToken, async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        const emailCheckQuery = `
+            SELECT 1 FROM users WHERE email = $1
+            UNION
+            SELECT 1 FROM temp_users WHERE email = $1
+        `;
+        const emailCheck = await mxdatabase.query(emailCheckQuery, [email]);
+
+        if (emailCheck.rows.length > 0) {
+            return res.status(409).json({ message: "Email already in use" });
+        }
+
+        res.status(200).json({ message: "Email is available" });
+    } catch (err) {
+        console.error("Check email error:", err);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+
 
 module.exports = router;
