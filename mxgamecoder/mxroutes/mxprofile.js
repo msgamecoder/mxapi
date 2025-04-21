@@ -68,13 +68,16 @@ router.put("/profile", verifyToken, async (req, res) => {
       const usernameCheckQuery = `
         SELECT 1 FROM users WHERE username = $1
         UNION
-        SELECT 1 FROM temp_user WHERE username = $1
+        SELECT 1 FROM temp_users WHERE username = $1
       `;
       const usernameCheck = await mxdatabase.query(usernameCheckQuery, [username]);
 
-      if (usernameCheck.rows.length > 0) {
-        return res.status(409).json({ message: "Username already in use" });
-      }
+     console.log("Checking username availability:", username);
+
+if (usernameCheck.rows.length > 0) {
+  console.log("❌ Username is taken.");
+  return res.status(409).json({ message: "Username already in use" });
+}
     } else if (username === currentUser.username) {
       return res.status(400).json({ message: "New username cannot be the same as your current username" });
     }
