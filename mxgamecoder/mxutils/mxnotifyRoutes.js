@@ -1,11 +1,10 @@
-
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const sanitizeFilename = require("sanitize-filename");
 const { sendEmailNotification } = require("./mxnotify");
 const { db, collection } = require("./mxfirebase-config");
-const { getDocs } = require("firebase/firestore");
+const { getDocs, doc, updateDoc } = require("firebase/firestore");
 const pool = require("../mxconfig/mxdatabase"); // ✅ Correct way!
 
 const router = express.Router();
@@ -43,23 +42,6 @@ async function getNotificationsFromFirebase(username) {
   return notifications;
 }
 
-router.get("/users/all", async (req, res) => {
-  try {
-    // Query to fetch all user details including username, email, location, bio, and phone_number
-    const result = await pool.query("SELECT username, email, location, bio, phone_number FROM users");
-    
-    // Return the result to the admin
-    res.status(200).json({
-      totalUsers: result.rowCount, // Total number of users
-      users: result.rows          // The list of users and their details
-    });
-  } catch (error) {
-    console.error("Error fetching users:", error);
-    res.status(500).json({ message: "Failed to fetch users." });
-  }
-});
-
-
 // ✅ GET ALL NOTIFICATIONS (no duplicates)
 router.get("/:username", async (req, res) => {
   const { username } = req.params;
@@ -92,8 +74,8 @@ router.get("/:username", async (req, res) => {
   }
 });
 
-// ✅ Mark one notification as read
-router.put("/read/:username", (req, res) => {
+// ✅ Mark one notification as read (Updated to sync Firebase and JSON)
+router.put("/read/:username", async (req, res) => {
   const { username } = req.params;
   const { filename } = req.body;
 
@@ -109,16 +91,39 @@ router.put("/read/:username", (req, res) => {
       return res.status(404).json({ message: "Notification not found." });
     }
 
+    // Update the local JSON file
     data.notifications[index].read = true;
+    updateUserNotifications(username, data.notifications);
+
+    // Update the notification in Firebase to mark it as read
+    const firebaseNotification = await getNotificationFromFirebase(username, filename);
+    if (firebaseNotification) {
+      await updateNotificationInFirebase(firebaseNotification.id, { read: true });
+    }
 
     console.log(`Notification ${filename} marked as read.`);
-    updateUserNotifications(username, data.notifications);
     res.status(200).json({ message: `Notification ${filename} marked as read.` });
   } catch (err) {
     console.error("❌ Error marking notification as read:", err);
     res.status(500).json({ message: "Failed to update notification." });
   }
 });
+
+// Helper function to fetch the notification from Firebase
+async function getNotificationFromFirebase(username, filename) {
+  const notificationsSnapshot = await getDocs(collection(db, "notifications"));
+  const notifications = notificationsSnapshot.docs
+    .map(doc => doc.data())
+    .filter(notification => notification.username === username && notification.filename === filename);
+
+  return notifications.length > 0 ? notifications[0] : null;
+}
+
+// Helper function to update the notification in Firebase
+async function updateNotificationInFirebase(id, updatedData) {
+  const notificationRef = doc(db, "notifications", id);
+  await updateDoc(notificationRef, updatedData);
+}
 
 // Serve a specific notification file (assuming files are stored locally)
 router.get("/:username/:filename", (req, res) => {
