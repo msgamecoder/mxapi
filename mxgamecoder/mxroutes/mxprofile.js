@@ -55,6 +55,24 @@ router.put("/profile", verifyToken, async (req, res) => {
     const { userId } = req;
     const { username, phone, location, bio } = req.body;
 
+    // Check the cooldown for username change
+    const checkQuery = `
+      SELECT last_username_change
+      FROM users
+      WHERE id = $1
+    `;
+    const result = await mxdatabase.query(checkQuery, [userId]);
+    
+    const lastChangeTimestamp = result.rows[0]?.last_username_change;
+    const now = Date.now();
+    const cooldownTime = 1 * 60 * 1000; // 1 minute cooldown in milliseconds
+
+    if (lastChangeTimestamp && now - lastChangeTimestamp < cooldownTime) {
+      return res.status(400).json({
+        message: `You can change your username again in ${Math.ceil((cooldownTime - (now - lastChangeTimestamp)) / 1000)} seconds.`,
+      });
+    }
+
     // If bio is provided along with other fields (username, phone, etc.)
     if (bio) {
       // Validate links in bio
@@ -82,18 +100,13 @@ router.put("/profile", verifyToken, async (req, res) => {
       });
     }
 
-    // If any required field (username, phone, location) is missing
-    if (!username || !phone || !location || !bio) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-
-    // Continue updating other fields like username, phone, etc.
+    // Proceed with updating the username and other fields
     let cloudinaryUrl = req.file ? req.file.path : "/mxfiles/avatar.png";
 
     const updateQuery = `
-      UPDATE users 
-      SET username = $1, phone_number = $2, location = $3, bio = $4, profile_picture = $5 
-      WHERE id = $6
+      UPDATE users
+      SET username = $1, phone_number = $2, location = $3, bio = $4, profile_picture = $5, last_username_change = $6
+      WHERE id = $7
       RETURNING username, email, phone_number AS phone, location, bio, profile_picture;
     `;
 
@@ -103,6 +116,7 @@ router.put("/profile", verifyToken, async (req, res) => {
       location,
       bio,
       cloudinaryUrl,
+      now, // Store the current timestamp as the last username change time
       userId,
     ]);
 
