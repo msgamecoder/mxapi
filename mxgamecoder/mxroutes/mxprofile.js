@@ -211,7 +211,7 @@ router.put("/change-name", verifyToken, async (req, res) => {
       return res.status(400).json({ message: "New name is the same as current one" });
     }
 
-    const cooldownTime = 1 * 60 * 1000;
+    const cooldownTime = 14 * 24 * 60 * 60 * 1000; // 14 days
     if (user.last_name_change && now - user.last_name_change < cooldownTime) {
       const secondsLeft = Math.ceil((cooldownTime - (now - user.last_name_change)) / 1000);
       return res.status(400).json({ message: `Wait ${secondsLeft}s before changing your name again.` });
