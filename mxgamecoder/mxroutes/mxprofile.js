@@ -2,9 +2,7 @@ const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
 const mxdatabase = require("../mxconfig/mxdatabase");
-const multer = require("multer");
-const cloudinary = require("cloudinary").v2;
-const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const fetch = require("node-fetch");  // Add this to make HTTP requests for URL validation
 require("dotenv").config();
 
 // JWT Middleware
@@ -19,22 +17,37 @@ function verifyToken(req, res, next) {
   });
 }
 
-// Cloudinary config
-cloudinary.config({
-  cloud_name: process.env.CLOUD_NAME,
-  api_key: process.env.CLOUD_API_KEY,
-  api_secret: process.env.CLOUD_API_SECRET,
-});
+// Forbidden domains to block
+const forbiddenDomains = ['xvideos.com', 'xnxx.com', 'pornhub.com']; // Add any domains you want to block
 
-// Multer + Cloudinary
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: "profile_pictures",
-    allowed_formats: ["jpg", "jpeg", "png"],
-  },
-});
-const upload = multer({ storage });
+// Function to validate URL
+async function validateUrl(url) {
+  try {
+    // Check if URL is http/https
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      return { valid: false, message: "URL must start with http:// or https://" };
+    }
+
+    // Get the domain from the URL
+    const { hostname } = new URL(url);
+
+    // Check if the domain is forbidden
+    if (forbiddenDomains.some(domain => hostname.includes(domain))) {
+      return { valid: false, message: "Forbidden domain detected" };
+    }
+
+    // Send a HEAD request to the URL to check if it's reachable
+    const response = await fetch(url, { method: "HEAD", mode: "no-cors" });
+
+    if (!response.ok) {
+      return { valid: false, message: `URL returned status ${response.status}` };
+    }
+
+    return { valid: true };
+  } catch (err) {
+    return { valid: false, message: "Failed to reach URL" };
+  }
+}
 
 // PUT /mx/profile - Update profile or picture
 router.put("/profile", verifyToken, async (req, res) => {
@@ -44,6 +57,16 @@ router.put("/profile", verifyToken, async (req, res) => {
 
     // If bio is provided along with other fields (username, phone, etc.)
     if (bio) {
+      // Validate links in bio
+      const urlRegex = /(https?:\/\/[^\s]+)/gi;
+      const urls = bio.match(urlRegex) || [];
+      for (const url of urls) {
+        const { valid, message } = await validateUrl(url);
+        if (!valid) {
+          return res.status(400).json({ message: `Invalid URL: ${message}` });
+        }
+      }
+
       const updateQuery = `
         UPDATE users
         SET bio = $1
