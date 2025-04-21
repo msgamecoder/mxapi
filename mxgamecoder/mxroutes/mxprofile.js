@@ -49,7 +49,7 @@ router.get("/profile", verifyToken, async (req, res) => {
     const { userId } = req;
 
     const query =
-      "SELECT username, email, phone_number AS phone, location, bio, profile_picture FROM users WHERE id = $1";
+      "SELECT username, email, phone_number AS phone, location, bio, profile_picture, balance FROM users WHERE id = $1";
     const result = await mxdatabase.query(query, [userId]);
 
     if (result.rows.length === 0) {
