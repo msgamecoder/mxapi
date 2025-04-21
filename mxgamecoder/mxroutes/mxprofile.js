@@ -3,6 +3,9 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const mxdatabase = require("../mxconfig/mxdatabase");
 const fetch = require("node-fetch");
+const multer = require("multer");
+const cloudinary = require("cloudinary").v2;
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
 require("dotenv").config();
 
 // JWT Middleware
@@ -16,6 +19,23 @@ function verifyToken(req, res, next) {
     next();
   });
 }
+
+// Cloudinary config
+cloudinary.config({
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.CLOUD_API_KEY,
+  api_secret: process.env.CLOUD_API_SECRET,
+});
+
+// Multer Cloudinary Storage
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "profile_pictures",
+    allowedFormats: ["jpg", "jpeg", "png"],
+  },
+});
+const upload = multer({ storage });
 
 const forbiddenDomains = ['xvideos.com', 'xnxx.com', 'pornhub.com'];
 
@@ -41,13 +61,13 @@ async function validateUrl(url) {
   }
 }
 
-router.put("/profile", verifyToken, async (req, res) => {
+// PUT /profile with image upload
+router.put("/profile", verifyToken, upload.single("profile_picture"), async (req, res) => {
   try {
     const { userId } = req;
     const { username, phone_number, location, bio } = req.body;
     const now = Date.now();
 
-    // Fetch current user data
     const userQuery = `SELECT username, phone_number, location, bio, profile_picture, last_username_change FROM users WHERE id = $1`;
     const userResult = await mxdatabase.query(userQuery, [userId]);
     const currentUser = userResult.rows[0];
@@ -56,15 +76,13 @@ router.put("/profile", verifyToken, async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // Username update validation
     if (username && username !== currentUser.username) {
-      const cooldownTime = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+      const cooldownTime = 7 * 24 * 60 * 60 * 1000;
       if (currentUser.last_username_change && now - currentUser.last_username_change < cooldownTime) {
         const secondsLeft = Math.ceil((cooldownTime - (now - currentUser.last_username_change)) / 1000);
         return res.status(400).json({ message: `You can change your username again in ${secondsLeft} seconds.` });
       }
 
-      // Check if username exists in users or temp_user
       const usernameCheckQuery = `
         SELECT 1 FROM users WHERE username = $1
         UNION
@@ -72,17 +90,13 @@ router.put("/profile", verifyToken, async (req, res) => {
       `;
       const usernameCheck = await mxdatabase.query(usernameCheckQuery, [username]);
 
-     console.log("Checking username availability:", username);
-
-if (usernameCheck.rows.length > 0) {
-  console.log("❌ Username is taken.");
-  return res.status(409).json({ message: "Username already in use" });
-}
+      if (usernameCheck.rows.length > 0) {
+        return res.status(409).json({ message: "Username already in use" });
+      }
     } else if (username === currentUser.username) {
       return res.status(400).json({ message: "New username cannot be the same as your current username" });
     }
 
-    // Validate bio URLs
     if (bio) {
       const urlRegex = /(https?:\/\/[^\s]+)/gi;
       const urls = bio.match(urlRegex) || [];
@@ -94,14 +108,12 @@ if (usernameCheck.rows.length > 0) {
       }
     }
 
-    // Use existing values if not provided
     const finalUsername = username || currentUser.username;
     const finalPhone = phone_number || currentUser.phone_number;
     const finalLocation = location || currentUser.location;
     const finalBio = bio || currentUser.bio;
-    const finalPicture = req.file ? req.file.path : currentUser.profile_picture;
+    const finalPicture = req.file ? req.file.path : currentUser.profile_picture || "/mxfiles/avatar.png";
 
-    // Update query
     const updateQuery = `
       UPDATE users
       SET username = $1, phone_number = $2, location = $3, bio = $4, profile_picture = $5, last_username_change = $6
@@ -130,6 +142,7 @@ if (usernameCheck.rows.length > 0) {
   }
 });
 
+// Get last username change timestamp
 router.get("/last-username-change", verifyToken, async (req, res) => {
   try {
     const { userId } = req;
@@ -150,6 +163,7 @@ router.get("/last-username-change", verifyToken, async (req, res) => {
   }
 });
 
+// Get profile
 router.get("/profile", verifyToken, async (req, res) => {
   try {
     const { userId } = req;
