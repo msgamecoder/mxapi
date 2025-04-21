@@ -69,9 +69,12 @@ router.put("/profile", verifyToken, upload.single("profile_picture"), async (req
     const { userId } = req;
     const { username, phone, location, bio } = req.body;
 
-    if (!username || !phone || !location || !bio) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
+  // Only require all fields if text fields are being updated
+if (req.file && !username && !phone && !location && !bio) {
+  // Allow only picture update
+} else if (!username || !phone || !location || !bio) {
+  return res.status(400).json({ message: "All fields are required" });
+}
 
     let cloudinaryUrl = "/mxfiles/avatar.png"; // Default avatar
     if (req.file) {
