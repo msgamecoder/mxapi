@@ -187,4 +187,67 @@ router.get("/profile", verifyToken, async (req, res) => {
   }
 });
 
+// PUT /change-name
+router.put("/change-name", verifyToken, async (req, res) => {
+  try {
+    const { userId } = req;
+    const { name } = req.body;
+    const now = Date.now();
+
+    if (!name) {
+      return res.status(400).json({ message: "Name is required" });
+    }
+
+    const userQuery = `SELECT name, last_name_change FROM users WHERE id = $1`;
+    const result = await mxdatabase.query(userQuery, [userId]);
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (name === user.name) {
+      return res.status(400).json({ message: "New name is the same as current one" });
+    }
+
+    const cooldownTime = 1 * 60 * 1000; // 1 minute for testing
+    if (user.last_name_change && now - user.last_name_change < cooldownTime) {
+      const secondsLeft = Math.ceil((cooldownTime - (now - user.last_name_change)) / 1000);
+      return res.status(400).json({ message: `Wait ${secondsLeft}s before changing your name again.` });
+    }
+
+    const updateQuery = `
+      UPDATE users
+      SET name = $1, last_name_change = $2
+      WHERE id = $3
+      RETURNING name;
+    `;
+    const updateResult = await mxdatabase.query(updateQuery, [name, now, userId]);
+
+    res.status(200).json({ message: "✅ Name updated", name: updateResult.rows[0].name });
+  } catch (err) {
+    console.error("Change name error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// GET /last-name-change
+router.get("/last-name-change", verifyToken, async (req, res) => {
+  try {
+    const { userId } = req;
+    const query = `SELECT last_name_change FROM users WHERE id = $1`;
+    const result = await mxdatabase.query(query, [userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json({ lastChangeTimestamp: result.rows[0].last_name_change || 0 });
+  } catch (err) {
+    console.error("Get last name change error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
 module.exports = router;
