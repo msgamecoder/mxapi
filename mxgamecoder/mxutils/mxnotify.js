@@ -41,21 +41,22 @@ function saveNotificationToJson(username, notification) {
   console.log(`Notification saved to JSON for user: ${username}`);
 }
 
-// Save notification to Firebase
+// Save notification to Firebase (updated to include 'read' status)
 async function saveNotificationToFirebase(username, notification, uid) {
   try {
-    console.log("UID before saving to Firebase:", uid); // Debugging: Check UID value
+    console.log("UID before saving to Firebase:", uid);
 
     if (!uid) {
       console.error("❌ UID is undefined. Cannot save notification to Firebase.");
-      return; // Exit if UID is not valid
+      return; 
     }
 
     await addDoc(collection(db, "notifications"), {
       username: username,
-      uid: uid,  // Ensure UID is passed here
+      uid: uid,
       ...notification,
       createdAt: new Date(),
+      read: false,  // Mark as unread by default
     });
     console.log("📲 Notification saved to Firebase.");
   } catch (error) {
