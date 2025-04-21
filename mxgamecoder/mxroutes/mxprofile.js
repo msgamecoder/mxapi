@@ -127,6 +127,26 @@ router.put("/profile", verifyToken, async (req, res) => {
   }
 });
 
+router.get("/last-username-change", verifyToken, async (req, res) => {
+  try {
+    const { userId } = req;
+
+    const query = `SELECT last_username_change FROM users WHERE id = $1`;
+    const result = await mxdatabase.query(query, [userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const lastChangeTimestamp = result.rows[0].last_username_change || 0;
+
+    res.status(200).json({ lastChangeTimestamp });
+  } catch (error) {
+    console.error("Error getting last username change:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 router.get("/profile", verifyToken, async (req, res) => {
   try {
     const { userId } = req;
