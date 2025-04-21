@@ -275,19 +275,21 @@ router.put("/change-email", verifyToken, async (req, res) => {
 
         const cooldownTime = 30 * 24 * 60 * 60 * 1000; // 30 days
         if (user.last_email_change && now - user.last_email_change < cooldownTime) {
-          const msLeft = cooldownTime - (now - user.last_username_change);
-          const seconds = Math.floor((msLeft / 1000) % 60);
-          const minutes = Math.floor((msLeft / (1000 * 60)) % 60);
-          const hours = Math.floor((msLeft / (1000 * 60 * 60)) % 24);
-          const days = Math.floor(msLeft / (1000 * 60 * 60 * 24));
-          
-          let timeLeft = '';
-          if (days > 0) timeLeft += `${days}d `;
-          if (hours > 0 || days > 0) timeLeft += `${hours}h `;
-          if (minutes > 0 || hours > 0 || days > 0) timeLeft += `${minutes}m `;
-          timeLeft += `${seconds}s`;
-          
-          return res.status(400).json({ message: `⏳ You can change your username again in ${timeLeft.trim()}.` });          
+            const msLeft = cooldownTime - (now - user.last_email_change);
+            const seconds = Math.floor((msLeft / 1000) % 60);
+            const minutes = Math.floor((msLeft / (1000 * 60)) % 60);
+            const hours = Math.floor((msLeft / (1000 * 60 * 60)) % 24);
+            const days = Math.floor(msLeft / (1000 * 60 * 60 * 24));
+
+            let timeLeft = '';
+            if (days > 0) timeLeft += `${days}d `;
+            if (hours > 0 || days > 0) timeLeft += `${hours}h `;
+            if (minutes > 0 || hours > 0 || days > 0) timeLeft += `${minutes}m `;
+            timeLeft += `${seconds}s`;
+
+            return res.status(400).json({
+                message: `⏳ You can change your email again in ${timeLeft.trim()}.`
+            });
         }
 
         const emailCheckQuery = `
@@ -315,7 +317,6 @@ router.put("/change-email", verifyToken, async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 });
-
 // POST /check-email
 router.post("/check-email", verifyToken, async (req, res) => {
     try {
