@@ -8,6 +8,8 @@ const cloudinary = require("cloudinary").v2;
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 require("dotenv").config();
 const { v4: uuidv4 } = require('uuid');
+const nodemailer = require("nodemailer");
+const { getWorkingAPI } = require("../mxconfig/mxapi");
 
 // JWT Middleware
 function verifyToken(req, res, next) {
@@ -252,9 +254,6 @@ router.get("/last-name-change", verifyToken, async (req, res) => {
 });
 
 // PUT /change-email
-const nodemailer = require("nodemailer");
-
-// PUT /change-email
 router.put("/change-email", verifyToken, async (req, res) => {
   try {
     const { userId } = req;
@@ -296,7 +295,8 @@ router.put("/change-email", verifyToken, async (req, res) => {
     const updateResult = await mxdatabase.query(updateQuery, [email, verificationToken, userId]);
 
     // Create the verification URL
-    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+      const apiUrl = await getWorkingAPI();
+    const verificationUrl = `${apiUrl}/verify-email?token=${verificationToken}`;
     const subject = "Verify your new email on MSWORLD";
     const message = `Please click the following link to verify your new email address: <a href="${verificationUrl}">${verificationUrl}</a>`;
 
