@@ -252,94 +252,93 @@ router.get("/last-name-change", verifyToken, async (req, res) => {
 
 // PUT /change-email
 router.put("/change-email", verifyToken, async (req, res) => {
-    try {
-        const { userId } = req;
-        const { email } = req.body;
-        const now = Date.now();
+  try {
+      const { userId } = req;
+      const { email } = req.body;
+      const now = Date.now();
 
-        if (!email) {
-            return res.status(400).json({ message: "Email is required" });
-        }
+      if (!email) {
+          return res.status(400).json({ message: "Email is required" });
+      }
 
-        const userQuery = `SELECT email, last_email_change FROM users WHERE id = $1`;
-        const result = await mxdatabase.query(userQuery, [userId]);
-        const user = result.rows[0];
+      const userQuery = `SELECT email, last_email_change FROM users WHERE id = $1`;
+      const result = await mxdatabase.query(userQuery, [userId]);
+      const user = result.rows[0];
 
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
+      if (!user) {
+          return res.status(404).json({ message: "User not found" });
+      }
 
-        if (email === user.email) {
-            return res.status(400).json({ message: "New email is the same as the current one" });
-        }
+      if (email === user.email) {
+          return res.status(400).json({ message: "New email is the same as the current one" });
+      }
 
-        const cooldownTime = 30 * 24 * 60 * 60 * 1000; // 30 days
-        if (user.last_email_change && now - user.last_email_change < cooldownTime) {
-            const msLeft = cooldownTime - (now - user.last_email_change);
-            const seconds = Math.floor((msLeft / 1000) % 60);
-            const minutes = Math.floor((msLeft / (1000 * 60)) % 60);
-            const hours = Math.floor((msLeft / (1000 * 60 * 60)) % 24);
-            const days = Math.floor(msLeft / (1000 * 60 * 60 * 24));
+      const emailCheckQuery = `SELECT 1 FROM users WHERE email = $1 UNION SELECT 1 FROM temp_users WHERE email = $1`;
+      const emailCheck = await mxdatabase.query(emailCheckQuery, [email]);
 
-            let timeLeft = '';
-            if (days > 0) timeLeft += `${days}d `;
-            if (hours > 0 || days > 0) timeLeft += `${hours}h `;
-            if (minutes > 0 || hours > 0 || days > 0) timeLeft += `${minutes}m `;
-            timeLeft += `${seconds}s`;
+      if (emailCheck.rows.length > 0) {
+          return res.status(409).json({ message: "Email already in use" });
+      }
 
-            return res.status(400).json({
-                message: `⏳ You can change your email again in ${timeLeft.trim()}.`
-            });
-        }
+      const verificationToken = uuidv4(); // Generate a UUID for email verification
 
-        const emailCheckQuery = `
-            SELECT 1 FROM users WHERE email = $1
-            UNION
-            SELECT 1 FROM temp_users WHERE email = $1
-        `;
-        const emailCheck = await mxdatabase.query(emailCheckQuery, [email]);
+      // Update temporary email and set verification token
+      const updateQuery = `
+          UPDATE users
+          SET temp_email = $1, verification_token = $2
+          WHERE id = $3
+          RETURNING temp_email;
+      `;
+      const updateResult = await mxdatabase.query(updateQuery, [email, verificationToken, userId]);
 
-        if (emailCheck.rows.length > 0) {
-            return res.status(409).json({ message: "Email already in use" });
-        }
+      // Send verification email
+      const { sendEmailNotification } = require("../mxutils/mxnotify");
+      const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+      const subject = "Verify your new email on MSWORLD";
+      const message = `Please click the following link to verify your new email address: <a href="${verificationUrl}">${verificationUrl}</a>`;
 
-        const updateQuery = `
-            UPDATE users
-            SET email = $1, last_email_change = $2
-            WHERE id = $3
-            RETURNING email;
-        `;
-        const updateResult = await mxdatabase.query(updateQuery, [email, now, userId]);
+      await sendEmailNotification(email, subject, message, user.username, userId);
 
-        res.status(200).json({ message: "✅ Email updated successfully", email: updateResult.rows[0].email });
-    } catch (err) {
-        console.error("Change email error:", err);
-        res.status(500).json({ message: "Server error" });
-    }
-});
-// POST /check-email
-router.post("/check-email", verifyToken, async (req, res) => {
-    try {
-        const { email } = req.body;
-
-        const emailCheckQuery = `
-            SELECT 1 FROM users WHERE email = $1
-            UNION
-            SELECT 1 FROM temp_users WHERE email = $1
-        `;
-        const emailCheck = await mxdatabase.query(emailCheckQuery, [email]);
-
-        if (emailCheck.rows.length > 0) {
-            return res.status(409).json({ message: "Email already in use" });
-        }
-
-        res.status(200).json({ message: "Email is available" });
-    } catch (err) {
-        console.error("Check email error:", err);
-        res.status(500).json({ message: "Server error" });
-    }
+      res.status(200).json({ message: "A verification link has been sent to your new email address." });
+  } catch (err) {
+      console.error("Change email error:", err);
+      res.status(500).json({ message: "Server error" });
+  }
 });
 
+// GET /verify-email
+router.get("/verify-email", async (req, res) => {
+  try {
+      const { token } = req.query;
+
+      if (!token) {
+          return res.status(400).json({ message: "Verification token is missing" });
+      }
+
+      const userQuery = `SELECT id, temp_email, verification_token FROM users WHERE verification_token = $1`;
+      const result = await mxdatabase.query(userQuery, [token]);
+
+      if (result.rows.length === 0) {
+          return res.status(400).json({ message: "Invalid or expired token" });
+      }
+
+      const user = result.rows[0];
+
+      // Update the email to the temporary email and confirm email verification
+      const updateQuery = `
+          UPDATE users
+          SET email = $1, temp_email = NULL, verification_token = NULL, email_verified = TRUE
+          WHERE id = $2
+          RETURNING email;
+      `;
+      const updateResult = await mxdatabase.query(updateQuery, [user.temp_email, user.id]);
+
+      res.status(200).json({ message: "Your email has been successfully verified." });
+  } catch (err) {
+      console.error("Email verification error:", err);
+      res.status(500).json({ message: "Server error" });
+  }
+});
 
 
 module.exports = router;
