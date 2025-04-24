@@ -12,6 +12,7 @@ const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
 //const crypto = require("crypto");
 const { getWorkingAPI } = require("../mxconfig/mxapi");
+const mxcooldown = require("../mxgamecoder/mxutils/mxcooldown"); // Cooldown logic
 
 // JWT Middleware
 function verifyToken(req, res, next) {
@@ -193,7 +194,6 @@ router.get("/profile", verifyToken, async (req, res) => {
 });
 
 // PUT /change-name
-// PUT /change-name
 router.put("/change-name", verifyToken, async (req, res) => {
   try {
     const { userId } = req;
@@ -328,21 +328,35 @@ router.put("/change-email", verifyToken, async (req, res) => {
     });
 
     const mailOptions = {
-      from: `"MSWORLD Support Team" <${process.env.SMTP_EMAIL}>`,
+      from: `"MSWORLD Support Team 📧" <${process.env.SMTP_EMAIL}>`,
       to: email,
-      subject,
-      html: `<div style="font-family: Arial, sans-serif; padding: 10px; background: #f4f4f4; border-radius: 5px;">
-               <h2 style="color: #333;">${subject}</h2>
-               <p style="color: #555;">${message}</p>
-               <hr>
-               <small style="color: #888;">If you didn't request this, you can ignore this email.</small>
-             </div>`,
+      subject: "📨 Verify Your New Email on MSWORLD",
+      html: `
+        <div style="font-family: Arial, sans-serif; font-size: 1.1rem; color: #333; background: #f9f9f9; padding: 20px; border-radius: 10px;">
+          <p>👋 Hi there!</p>
+          <p>We received a request to update your email on <strong>MSWORLD</strong>.</p>
+          <p>To verify and complete this change, just click the button below:</p>
+          <a href="${verificationUrl}" style="
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 0.75rem 1.5rem;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1rem;
+          ">📩 Verify New Email</a>
+          <p style="margin-top: 2rem;">Didn't request this change? You can safely ignore this email.</p>
+          <p>🔐 Stay safe,<br/>Team MSWORLD 🌍</p>
+        </div>
+      `,
       headers: {
         "X-Priority": "1 (Highest)",
         "X-MSMail-Priority": "High",
         "Importance": "High",
       },
-    };
+    };    
 
     await transporter.sendMail(mailOptions);
 
@@ -452,21 +466,35 @@ router.put("/change-phone", verifyToken, async (req, res) => {
     });
 
     const mailOptions = {
-      from: `"MSWORLD Support" <${process.env.SMTP_EMAIL}>`,
+      from: `"MSWORLD Support 📱" <${process.env.SMTP_EMAIL}>`,
       to: user.email,
-      subject,
-      html: `<div style="font-family: Arial; background: #f4f4f4; padding: 10px; border-radius: 5px;">
-              <h2>${subject}</h2>
-              <p>${message}</p>
-              <hr>
-              <small>If you didn’t request this, ignore it.</small>
-            </div>`,
+      subject: "📞 Verify Your New Phone Number on MSWORLD",
+      html: `
+        <div style="font-family: Arial, sans-serif; font-size: 1.1rem; color: #333; background: #f9f9f9; padding: 20px; border-radius: 10px;">
+          <p>👋 Hello!</p>
+          <p>You requested to change your phone number on <strong>MSWORLD</strong>.</p>
+          <p>To confirm this change, click the button below:</p>
+          <a href="${verificationUrl}" style="
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 0.75rem 1.5rem;
+            background-color: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1rem;
+          ">✅ Confirm Phone Number</a>
+          <p style="margin-top: 2rem;">If this wasn’t you, feel free to ignore this email.</p>
+          <p>🔐 Stay secure,<br>Team MSWORLD 🌍</p>
+        </div>
+      `,
       headers: {
         "X-Priority": "1 (Highest)",
         "X-MSMail-Priority": "High",
         "Importance": "High"
       }
-    };
+    };    
 
     await transporter.sendMail(mailOptions);
 
@@ -509,6 +537,10 @@ router.get("/verify-phone", async (req, res) => {
 
 // PUT /change-password
 router.put("/change-password", verifyToken, async (req, res) => { 
+  const cooldownCheck = await mxcooldown.checkAndUpdateCooldown(req.userId, "change-password");
+  if (cooldownCheck.cooldown) {
+    return res.status(429).json({ message: `🚫 Too many attempts. Try again in ${cooldownCheck.remaining}s.` });
+  }
   try {
       const { userId } = req;
       const { currentPassword, newPassword } = req.body;
@@ -571,11 +603,30 @@ router.put("/change-password", verifyToken, async (req, res) => {
       });
 
       await transporter.sendMail({
-          from: `"MSWORLD Security" <${process.env.SMTP_EMAIL}>`,
-          to: recipientEmail, // Use email fetched from DB
-          subject: "Confirm your new password on MSWORLD",
-          html: `<p>Click below to confirm your new password:</p><a href="${verificationLink}">${verificationLink}</a>`,
-      });
+        from: `"MSWORLD Security 🔐" <${process.env.SMTP_EMAIL}>`,
+        to: recipientEmail,
+        subject: "🛡️ Confirm Your New Password on MSWORLD",
+        html: `
+          <div style="font-family: Arial, sans-serif; font-size: 1.1rem; color: #333;">
+            <p>👋 Hey there!</p>
+            <p>You recently requested to change your password on <strong>MSWORLD</strong>.</p>
+            <p>To confirm this change, please click the button below:</p>
+            <a href="${verificationLink}" style="
+              display: inline-block;
+              margin-top: 1rem;
+              padding: 0.75rem 1.5rem;
+              background-color: #007BFF;
+              color: white;
+              text-decoration: none;
+              border-radius: 8px;
+              font-weight: bold;
+              font-size: 1rem;
+            ">✅ Confirm Password</a>
+            <p style="margin-top: 2rem;">If you didn't request this, you can safely ignore this email.</p>
+            <p>🌀 Stay secure,<br>Team MSWORLD 🌍</p>
+          </div>
+        `,
+      });      
 
       return res.status(200).json({ message: "✅ A verification link has been sent to your email." });
   } catch (err) {
