@@ -252,61 +252,93 @@ router.get("/last-name-change", verifyToken, async (req, res) => {
 });
 
 // PUT /change-email
+const nodemailer = require("nodemailer");
+
+// PUT /change-email
 router.put("/change-email", verifyToken, async (req, res) => {
   try {
-      const { userId } = req;
-      const { email } = req.body;
-      const now = Date.now();
+    const { userId } = req;
+    const { email } = req.body;
+    const now = Date.now();
 
-      if (!email) {
-          return res.status(400).json({ message: "Email is required" });
-      }
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
 
-      const userQuery = `SELECT email, last_email_change FROM users WHERE id = $1`;
-      const result = await mxdatabase.query(userQuery, [userId]);
-      const user = result.rows[0];
+    const userQuery = `SELECT email, last_email_change, username FROM users WHERE id = $1`;
+    const result = await mxdatabase.query(userQuery, [userId]);
+    const user = result.rows[0];
 
-      if (!user) {
-          return res.status(404).json({ message: "User not found" });
-      }
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
-      if (email === user.email) {
-          return res.status(400).json({ message: "New email is the same as the current one" });
-      }
+    if (email === user.email) {
+      return res.status(400).json({ message: "New email is the same as the current one" });
+    }
 
-      const emailCheckQuery = `SELECT 1 FROM users WHERE email = $1 UNION SELECT 1 FROM temp_users WHERE email = $1`;
-      const emailCheck = await mxdatabase.query(emailCheckQuery, [email]);
+    const emailCheckQuery = `SELECT 1 FROM users WHERE email = $1 UNION SELECT 1 FROM temp_users WHERE email = $1`;
+    const emailCheck = await mxdatabase.query(emailCheckQuery, [email]);
 
-      if (emailCheck.rows.length > 0) {
-          return res.status(409).json({ message: "Email already in use" });
-      }
+    if (emailCheck.rows.length > 0) {
+      return res.status(409).json({ message: "Email already in use" });
+    }
 
-      const verificationToken = uuidv4(); // Generate a UUID for email verification
+    const verificationToken = uuidv4(); // Generate a UUID for email verification
 
-      // Update temporary email and set verification token
-      const updateQuery = `
-          UPDATE users
-          SET temp_email = $1, verification_token = $2
-          WHERE id = $3
-          RETURNING temp_email;
-      `;
-      const updateResult = await mxdatabase.query(updateQuery, [email, verificationToken, userId]);
+    // Update temporary email and set verification token
+    const updateQuery = `
+        UPDATE users
+        SET temp_email = $1, verification_token = $2
+        WHERE id = $3
+        RETURNING temp_email;
+    `;
+    const updateResult = await mxdatabase.query(updateQuery, [email, verificationToken, userId]);
 
-      // Send verification email
-      const { sendEmailNotification } = require("../mxutils/mxnotify");
-      const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
-      const subject = "Verify your new email on MSWORLD";
-      const message = `Please click the following link to verify your new email address: <a href="${verificationUrl}">${verificationUrl}</a>`;
+    // Create the verification URL
+    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+    const subject = "Verify your new email on MSWORLD";
+    const message = `Please click the following link to verify your new email address: <a href="${verificationUrl}">${verificationUrl}</a>`;
 
-      await sendEmailNotification(email, subject, message, user.username, userId);
+    // Sending email via SMTP
+    let transporter = nodemailer.createTransport({
+      service: "gmail", // You can use any other email service provider here
+      auth: {
+        user: process.env.SMTP_EMAIL,
+        pass: process.env.SMTP_PASSWORD,
+      },
+      secure: true,
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
 
-      res.status(200).json({ message: "A verification link has been sent to your new email address." });
+    const mailOptions = {
+      from: `"MSWORLD Support Team" <${process.env.SMTP_EMAIL}>`,
+      to: email,
+      subject: subject,
+      html: `<div style="font-family: Arial, sans-serif; padding: 10px; background: #f4f4f4; border-radius: 5px;">
+               <h2 style="color: #333;">${subject}</h2>
+               <p style="color: #555;">${message}</p>
+               <hr>
+               <small style="color: #888;">If you didn't request this, you can ignore this email.</small>
+             </div>`,
+      headers: {
+        "X-Priority": "1 (Highest)",
+        "X-MSMail-Priority": "High",
+        "Importance": "High",
+      },
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    // Respond back to the client
+    res.status(200).json({ message: "A verification link has been sent to your new email address." });
   } catch (err) {
-      console.error("Change email error:", err);
-      res.status(500).json({ message: "Server error" });
+    console.error("Change email error:", err);
+    res.status(500).json({ message: "Server error" });
   }
 });
-
 // GET /verify-email
 router.get("/verify-email", async (req, res) => {
   try {
