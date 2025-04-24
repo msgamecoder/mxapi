@@ -284,29 +284,21 @@ router.put("/change-email", verifyToken, async (req, res) => {
     }
 
     const verificationToken = uuidv4(); // Generate a UUID for email verification
-    const tokenCreatedAt = new Date(); // Current timestamp for when the token is generated
 
-    // Log the generated token and creation time
-    console.log("Generated token:", verificationToken);
-    console.log("Token created at:", tokenCreatedAt);
-
-    // Update temporary email and set verification token along with its creation time
+    // Update temporary email and set verification token
     const updateQuery = `
         UPDATE users
-        SET temp_email = $1, verification_token = $2, verification_token_created_at = $3
-        WHERE id = $4
+        SET temp_email = $1, verification_token = $2
+        WHERE id = $3
         RETURNING temp_email;
     `;
-    const updateResult = await mxdatabase.query(updateQuery, [email, verificationToken, tokenCreatedAt, userId]);
+    const updateResult = await mxdatabase.query(updateQuery, [email, verificationToken, userId]);
 
     // Create the verification URL
-    const apiUrl = await getWorkingAPI();
+      const apiUrl = await getWorkingAPI();
     const verificationUrl = `${apiUrl}/verify-email?token=${verificationToken}`;
     const subject = "Verify your new email on MSWORLD";
     const message = `Please click the following link to verify your new email address: <a href="${verificationUrl}">${verificationUrl}</a>`;
-
-    // Log the verification URL
-    console.log("Verification URL:", verificationUrl);
 
     // Sending email via SMTP
     let transporter = nodemailer.createTransport({
@@ -351,45 +343,36 @@ router.put("/change-email", verifyToken, async (req, res) => {
 // GET /verify-email
 router.get("/verify-email", async (req, res) => {
   try {
-    const { token } = req.query;
+      const { token } = req.query;
 
-    if (!token) {
-      return res.status(400).json({ message: "Verification token is missing" });
-    }
+      if (!token) {
+          return res.status(400).json({ message: "Verification token is missing" });
+      }
 
-    const userQuery = `SELECT id, temp_email, verification_token, verification_token_created_at FROM users WHERE verification_token = $1`;
-    const result = await mxdatabase.query(userQuery, [token]);
+      const userQuery = `SELECT id, temp_email, verification_token FROM users WHERE verification_token = $1`;
+      const result = await mxdatabase.query(userQuery, [token]);
 
-    if (result.rows.length === 0) {
-      return res.status(400).json({ message: "Invalid or expired token" });
-    }
+      if (result.rows.length === 0) {
+          return res.status(400).json({ message: "Invalid or expired token" });
+      }
 
-    const user = result.rows[0];
+      const user = result.rows[0];
 
-    // Check if the token has expired (5 minutes)
-    const tokenAge = Date.now() - new Date(user.verification_token_created_at).getTime();
-    if (tokenAge > 5 * 60 * 1000) { // 5 minutes in milliseconds
-      return res.status(400).json({ message: "Verification token has expired" });
-    }
+      // Update the email to the temporary email and confirm email verification
+      const updateQuery = `
+          UPDATE users
+          SET email = $1, temp_email = NULL, verification_token = NULL, email_verified = TRUE
+          WHERE id = $2
+          RETURNING email;
+      `;
+      const updateResult = await mxdatabase.query(updateQuery, [user.temp_email, user.id]);
 
-    // Update the email to the temporary email and confirm email verification
-    const updateQuery = `
-      UPDATE users
-      SET email = $1, temp_email = NULL, verification_token = NULL, verification_token_created_at = NULL, email_verified = TRUE
-      WHERE id = $2
-      RETURNING email;
-    `;
-    const updateResult = await mxdatabase.query(updateQuery, [user.temp_email, user.id]);
-
-    res.status(200).json({ message: "Your email has been successfully verified." });
+      res.status(200).json({ message: "Your email has been successfully verified." });
   } catch (err) {
-    console.error("Email verification error:", err);
-    res.status(500).json({ message: "Server error" });
+      console.error("Email verification error:", err);
+      res.status(500).json({ message: "Server error" });
   }
 });
-
-console.log("Token from URL:", token);
-console.log("Token in database:", user.verification_token);
 
 
 module.exports = router;
