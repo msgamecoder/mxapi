@@ -297,17 +297,14 @@ router.put("/change-email", verifyToken, async (req, res) => {
 
     const verificationToken = uuidv4();
 
- // Update user with temp email, token, and set last_email_change as bigint
-const updateQuery = `
-UPDATE users
-SET temp_email = $1, 
-    verification_token = $2, 
-    last_email_change = EXTRACT(EPOCH FROM NOW()) * 1000 -- Cast to bigint (milliseconds)
-WHERE id = $3
-RETURNING temp_email;
-`;
-const updateResult = await mxdatabase.query(updateQuery, [email, verificationToken, userId]);
-
+    // Update user with temp email, token, and set last_email_change timestamp
+    const updateQuery = `
+      UPDATE users
+      SET temp_email = $1, verification_token = $2, last_email_change = NOW()
+      WHERE id = $3
+      RETURNING temp_email;
+    `;
+    const updateResult = await mxdatabase.query(updateQuery, [email, verificationToken, userId]);
 
     // Create verification URL
     const apiUrl = await getWorkingAPI();
@@ -347,7 +344,7 @@ const updateResult = await mxdatabase.query(updateQuery, [email, verificationTok
 
     await transporter.sendMail(mailOptions);
 
-    res.redirect("https://mxgamecoder.lovestoblog.com/mxverify.html");
+    res.status(200).json({ message: "✅ A verification link has been sent to your new email address." });
   } catch (err) {
     console.error("Change email error:", err);
     res.status(500).json({ message: "Server error" });
@@ -381,7 +378,7 @@ router.get("/verify-email", async (req, res) => {
       `;
       const updateResult = await mxdatabase.query(updateQuery, [user.temp_email, user.id]);
 
-      res.status(200).json({ message: "Your email has been successfully verified." });
+      res.redirect("http://mxgamecoder.lovestoblog.com/mxverify.html");
   } catch (err) {
       console.error("Email verification error:", err);
       res.status(500).json({ message: "Server error" });
