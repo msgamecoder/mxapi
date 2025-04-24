@@ -286,6 +286,10 @@ router.put("/change-email", verifyToken, async (req, res) => {
     const verificationToken = uuidv4(); // Generate a UUID for email verification
     const tokenCreatedAt = new Date(); // Current timestamp for when the token is generated
 
+    // Log the generated token and creation time
+    console.log("Generated token:", verificationToken);
+    console.log("Token created at:", tokenCreatedAt);
+
     // Update temporary email and set verification token along with its creation time
     const updateQuery = `
         UPDATE users
@@ -300,6 +304,9 @@ router.put("/change-email", verifyToken, async (req, res) => {
     const verificationUrl = `${apiUrl}/verify-email?token=${verificationToken}`;
     const subject = "Verify your new email on MSWORLD";
     const message = `Please click the following link to verify your new email address: <a href="${verificationUrl}">${verificationUrl}</a>`;
+
+    // Log the verification URL
+    console.log("Verification URL:", verificationUrl);
 
     // Sending email via SMTP
     let transporter = nodemailer.createTransport({
@@ -381,10 +388,6 @@ router.get("/verify-email", async (req, res) => {
   }
 });
 
-console.log("Generated token:", verificationToken);
-console.log("Token created at:", tokenCreatedAt);
 console.log("Received token:", token);
-console.log("Verification URL:", verificationUrl);
-
 
 module.exports = router;
