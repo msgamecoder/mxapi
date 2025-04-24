@@ -9,6 +9,8 @@ const { CloudinaryStorage } = require("multer-storage-cloudinary");
 require("dotenv").config();
 const { v4: uuidv4 } = require('uuid');
 const nodemailer = require("nodemailer");
+const bcrypt = require("bcryptjs");
+//const crypto = require("crypto");
 const { getWorkingAPI } = require("../mxconfig/mxapi");
 
 // JWT Middleware
@@ -505,109 +507,93 @@ router.get("/verify-phone", async (req, res) => {
   }
 });
 
-const bcrypt = require("bcryptjs");
-const crypto = require("crypto");
-
 router.put("/change-password", verifyToken, async (req, res) => {
-  try {
-    const { userId } = req;
-    const { currentPassword, newPassword } = req.body;
+    try {
+        const { userId } = req;
+        const { currentPassword, newPassword } = req.body;
+        const now = Date.now();
+        const COOLDOWN_MS = 5 * 24 * 60 * 60 * 1000;
 
-    const now = Date.now();
-    const cooldownDays = 5;
-    const COOLDOWN_MS = cooldownDays * 24 * 60 * 60 * 1000;
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ message: "Both current and new password required" });
+        }
 
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({ message: "All fields are required" });
+        const query = `SELECT password_hash, last_password_change, username FROM users WHERE id = $1`;
+        const userResult = await mxdatabase.query(query, [userId]);
+
+        if (userResult.rows.length === 0) return res.status(404).json({ message: "User not found" });
+
+        const user = userResult.rows[0];
+
+        const match = await bcrypt.compare(currentPassword, user.password_hash);
+        if (!match) return res.status(401).json({ message: "Current password incorrect" });
+
+        const newMatch = await bcrypt.compare(newPassword, user.password_hash);
+        if (newMatch) return res.status(400).json({ message: "New password cannot be the same as current one" });
+
+        if (user.last_password_change) {
+            const lastChange = new Date(user.last_password_change).getTime();
+            if (now - lastChange < COOLDOWN_MS) {
+                const daysLeft = Math.ceil((COOLDOWN_MS - (now - lastChange)) / (1000 * 60 * 60 * 24));
+                return res.status(429).json({ message: `⏳ Wait ${daysLeft} day(s) to change password again.` });
+            }
+        }
+
+        const hash = await bcrypt.hash(newPassword, 12);
+        const verificationToken = uuidv4();
+
+        await mxdatabase.query(`
+            UPDATE users
+            SET temp_password = $1, verification_token = $2, last_password_change = NOW()
+            WHERE id = $3
+        `, [hash, verificationToken, userId]);
+
+        const apiUrl = await getWorkingAPI();
+        const verificationLink = `${apiUrl}/mx/verify-password?token=${verificationToken}`;
+
+        // Send verification email
+        let transporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+                user: process.env.SMTP_EMAIL,
+                pass: process.env.SMTP_PASSWORD,
+            },
+        });
+
+        await transporter.sendMail({
+            from: `"MSWORLD Security" <${process.env.SMTP_EMAIL}>`,
+            to: req.userEmail,
+            subject: "Confirm your new password on MSWORLD",
+            html: `<p>Click below to confirm your new password:</p><a href="${verificationLink}">${verificationLink}</a>`,
+        });
+
+        return res.status(200).json({ message: "✅ A verification link has been sent to your email." });
+    } catch (err) {
+        console.error("Password change error:", err);
+        res.status(500).json({ message: "Server error" });
     }
-
-    // Get current user and last password change
-    const userQuery = `SELECT password_hash, last_password_change FROM users WHERE id = $1`;
-    const userRes = await mxdatabase.query(userQuery, [userId]);
-
-    if (userRes.rows.length === 0) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const user = userRes.rows[0];
-
-    // Cooldown check
-    if (user.last_password_change) {
-      const lastChange = new Date(user.last_password_change).getTime();
-      const timeSince = now - lastChange;
-
-      if (timeSince < COOLDOWN_MS) {
-        const left = Math.ceil((COOLDOWN_MS - timeSince) / (1000 * 60 * 60 * 24));
-        return res.status(429).json({ message: `⏳ You can only change password once every ${cooldownDays} days. Try again in ${left} day(s).` });
-      }
-    }
-
-    // Compare old password
-    const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
-    if (!isMatch) {
-      return res.status(401).json({ message: "Incorrect current password" });
-    }
-
-    // Prevent same password reuse
-    const isSame = await bcrypt.compare(newPassword, user.password_hash);
-    if (isSame) {
-      return res.status(400).json({ message: "New password cannot be same as the old one" });
-    }
-
-    // Hash new password and generate token
-    const newHashed = await bcrypt.hash(newPassword, 10);
-    const verificationToken = crypto.randomBytes(32).toString("hex");
-
-    // Save hashed temp password + verification token
-    const updateQuery = `
-      UPDATE users
-      SET temp_password = $1, password_verification_token = $2, last_password_change = NOW()
-      WHERE id = $3
-    `;
-    await mxdatabase.query(updateQuery, [newHashed, verificationToken, userId]);
-
-    // Email link
-    const apiUrl = await getWorkingAPI();
-    const verificationUrl = `${apiUrl}/mx/verify-password?token=${verificationToken}`;
-    const subject = "Verify your new password on MSWORLD";
-    const message = `Click this to activate your new password: <a href="${verificationUrl}">${verificationUrl}</a>`;
-
-    await sendMail(user.email, subject, message);
-
-    res.status(200).json({ message: "✅ Verification link sent to your email." });
-  } catch (err) {
-    console.error("Change password error:", err);
-    res.status(500).json({ message: "Server error" });
-  }
 });
 
 router.get("/verify-password", async (req, res) => {
-  try {
-    const { token } = req.query;
-    if (!token) return res.status(400).json({ message: "Token is required" });
+  const { token } = req.query;
 
-    const query = `SELECT id, temp_password FROM users WHERE password_verification_token = $1`;
-    const result = await mxdatabase.query(query, [token]);
+  if (!token) return res.status(400).json({ message: "Missing token" });
 
-    if (result.rows.length === 0) {
+  const result = await mxdatabase.query(`SELECT id, temp_password FROM users WHERE verification_token = $1`, [token]);
+
+  if (result.rows.length === 0) {
       return res.status(400).json({ message: "Invalid or expired token" });
-    }
-
-    const user = result.rows[0];
-
-    // Finalize password update
-    const updateQuery = `
-      UPDATE users
-      SET password_hash = $1, temp_password = NULL, password_verification_token = NULL
-      WHERE id = $2
-    `;
-    await mxdatabase.query(updateQuery, [user.temp_password, user.id]);
-
-    res.redirect("http://mxgamecoder.lovestoblog.com/mxverify.html");
-  } catch (err) {
-    console.error("Password verification error:", err);
-    res.status(500).json({ message: "Server error" });
   }
+
+  const user = result.rows[0];
+
+  await mxdatabase.query(`
+      UPDATE users
+      SET password_hash = $1, temp_password = NULL, verification_token = NULL
+      WHERE id = $2
+  `, [user.temp_password, user.id]);
+
+  res.redirect("http://mxgamecoder.lovestoblog.com/mxverify.html");
 });
 
 module.exports = router;
