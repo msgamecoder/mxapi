@@ -388,6 +388,4 @@ router.get("/verify-email", async (req, res) => {
   }
 });
 
-console.log("Received token:", token);
-
 module.exports = router;
