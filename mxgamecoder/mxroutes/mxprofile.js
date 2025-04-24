@@ -12,7 +12,7 @@ const nodemailer = require("nodemailer");
 const bcrypt = require("bcryptjs");
 //const crypto = require("crypto");
 const { getWorkingAPI } = require("../mxconfig/mxapi");
-const mxcooldown = require("../mxgamecoder/mxutils/mxcooldown"); // Cooldown logic
+const mxcooldown = require("./mxcooldown"); // Cooldown logic
 
 // JWT Middleware
 function verifyToken(req, res, next) {
