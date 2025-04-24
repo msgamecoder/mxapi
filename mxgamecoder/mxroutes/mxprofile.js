@@ -385,5 +385,124 @@ router.get("/verify-email", async (req, res) => {
   }
 });
 
+// PUT /change-phone
+router.put("/change-phone", verifyToken, async (req, res) => {
+  try {
+    const { userId } = req;
+    const { phone_number } = req.body;
+
+    if (!phone_number || !/^\d{10}$/.test(phone_number)) {
+      return res.status(400).json({ message: "Invalid phone number format" });
+    }
+
+    const userQuery = `SELECT phone_number, email, phone_change_cooldown_end FROM users WHERE id = $1`;
+    const result = await mxdatabase.query(userQuery, [userId]);
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check if cooldown has passed
+    const currentDate = new Date();
+    if (user.phone_change_cooldown_end && new Date(user.phone_change_cooldown_end) > currentDate) {
+      const remainingTime = new Date(user.phone_change_cooldown_end) - currentDate;
+      const remainingDays = Math.ceil(remainingTime / (1000 * 3600 * 24));
+      return res.status(400).json({ message: `🔒 You must wait ${remainingDays} more day(s) to change your phone number.` });
+    }
+
+    if (phone_number === user.phone_number) {
+      return res.status(400).json({ message: "New number is same as current" });
+    }
+
+    const phoneCheckQuery = `SELECT 1 FROM users WHERE phone_number = $1`;
+    const phoneCheck = await mxdatabase.query(phoneCheckQuery, [phone_number]);
+
+    if (phoneCheck.rows.length > 0) {
+      return res.status(409).json({ message: "Phone number already in use" });
+    }
+
+    const verificationToken = uuidv4();
+
+    // Update temp phone + token
+    const updateQuery = `
+      UPDATE users
+      SET temp_phone = $1, verification_token = $2, phone_change_requested_at = NOW(), phone_change_cooldown_end = NOW() + INTERVAL '14 days'
+      WHERE id = $3
+    `;
+    await mxdatabase.query(updateQuery, [phone_number, verificationToken, userId]);
+
+    const apiUrl = await getWorkingAPI();
+    const verificationUrl = `${apiUrl}/mx/verify-phone?token=${verificationToken}`;
+    const subject = "Verify your new phone number on MSWORLD";
+    const message = `Click this link to confirm your new number: <a href="${verificationUrl}">${verificationUrl}</a>`;
+
+    // Email it
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.SMTP_EMAIL,
+        pass: process.env.SMTP_PASSWORD,
+      },
+      secure: true,
+      tls: { rejectUnauthorized: false },
+    });
+
+    const mailOptions = {
+      from: `"MSWORLD Support" <${process.env.SMTP_EMAIL}>`,
+      to: user.email,
+      subject,
+      html: `<div style="font-family: Arial; background: #f4f4f4; padding: 10px; border-radius: 5px;">
+              <h2>${subject}</h2>
+              <p>${message}</p>
+              <hr>
+              <small>If you didn’t request this, ignore it.</small>
+            </div>`,
+      headers: {
+        "X-Priority": "1 (Highest)",
+        "X-MSMail-Priority": "High",
+        "Importance": "High"
+      }
+    };
+
+    await transporter.sendMail(mailOptions);
+
+    res.status(200).json({ message: "✅ Verification link sent to your email." });
+
+  } catch (err) {
+    console.error("Change phone error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+// GET /verify-phone
+router.get("/verify-phone", async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).json({ message: "Token missing" });
+    }
+
+    const result = await mxdatabase.query(`SELECT id, temp_phone FROM users WHERE verification_token = $1`, [token]);
+    const user = result.rows[0];
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired token" });
+    }
+
+    await mxdatabase.query(`
+      UPDATE users
+      SET phone_number = $1, temp_phone = NULL, verification_token = NULL
+      WHERE id = $2
+    `, [user.temp_phone, user.id]);
+
+    res.redirect("http://mxgamecoder.lovestoblog.com/mxverify.html");
+  } catch (err) {
+    console.error("Phone verify error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 module.exports = router;
