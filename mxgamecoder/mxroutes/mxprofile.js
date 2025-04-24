@@ -344,7 +344,7 @@ router.put("/change-email", verifyToken, async (req, res) => {
 
     await transporter.sendMail(mailOptions);
 
-    res.status(200).json({ message: "✅ A verification link has been sent to your new email address." });
+    res.redirect("https://mxgamecoder.lovestoblog.com/mxverify.html");
   } catch (err) {
     console.error("Change email error:", err);
     res.status(500).json({ message: "Server error" });
