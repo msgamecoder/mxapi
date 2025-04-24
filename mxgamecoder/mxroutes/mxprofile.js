@@ -516,7 +516,7 @@ router.put("/change-password", verifyToken, async (req, res) => {
     if (!currentPassword || !newPassword)
       return res.status(400).json({ message: "All fields are required" });
 
-    const query = `SELECT password_hash, last_password_change, username FROM users WHERE id = $1`;
+    const query = `SELECT password_hash, last_password_change, username, email FROM users WHERE id = $1`;
     const userResult = await mxdatabase.query(query, [userId]);
     const user = userResult.rows[0];
 
@@ -569,7 +569,7 @@ router.put("/change-password", verifyToken, async (req, res) => {
 
     await transporter.sendMail({
       from: `"MSWORLD Security" <${process.env.SMTP_EMAIL}>`,
-      to: req.user.email,
+      to: user.email,
       subject,
       html,
     });
