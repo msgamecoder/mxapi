@@ -391,8 +391,9 @@ router.put("/change-phone", verifyToken, async (req, res) => {
     const { userId } = req;
     const { phone_number } = req.body;
 
-    if (!phone_number || !/^\d{10}$/.test(phone_number)) {
-      return res.status(400).json({ message: "Invalid phone number format" });
+    // Updated validation: phone number must be between 11 and 13 digits
+    if (!phone_number || !/^\d{11,13}$/.test(phone_number)) {
+      return res.status(400).json({ message: "Invalid phone number format. Must be between 11 and 13 digits." });
     }
 
     const userQuery = `SELECT phone_number, email, phone_change_cooldown_end FROM users WHERE id = $1`;
@@ -474,7 +475,6 @@ router.put("/change-phone", verifyToken, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
 
 // GET /verify-phone
 router.get("/verify-phone", async (req, res) => {
