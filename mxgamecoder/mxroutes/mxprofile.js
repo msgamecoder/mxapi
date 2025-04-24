@@ -276,6 +276,18 @@ router.put("/change-email", verifyToken, async (req, res) => {
       return res.status(400).json({ message: "New email is the same as the current one" });
     }
 
+    // 🛑 20-day cooldown check
+    const COOLDOWN_MS = 20 * 24 * 60 * 60 * 1000; // 20 days
+    if (user.last_email_change) {
+      const lastChange = new Date(user.last_email_change).getTime();
+      const timeSinceChange = now - lastChange;
+
+      if (timeSinceChange < COOLDOWN_MS) {
+        const daysLeft = Math.ceil((COOLDOWN_MS - timeSinceChange) / (1000 * 60 * 60 * 24));
+        return res.status(429).json({ message: `⏳ You can only change your email once every 20 days. Try again in ${daysLeft} day(s).` });
+      }
+    }
+
     const emailCheckQuery = `SELECT 1 FROM users WHERE email = $1 UNION SELECT 1 FROM temp_users WHERE email = $1`;
     const emailCheck = await mxdatabase.query(emailCheckQuery, [email]);
 
@@ -283,26 +295,26 @@ router.put("/change-email", verifyToken, async (req, res) => {
       return res.status(409).json({ message: "Email already in use" });
     }
 
-    const verificationToken = uuidv4(); // Generate a UUID for email verification
+    const verificationToken = uuidv4();
 
-    // Update temporary email and set verification token
+    // Update user with temp email, token, and set last_email_change timestamp
     const updateQuery = `
-        UPDATE users
-        SET temp_email = $1, verification_token = $2
-        WHERE id = $3
-        RETURNING temp_email;
+      UPDATE users
+      SET temp_email = $1, verification_token = $2, last_email_change = NOW()
+      WHERE id = $3
+      RETURNING temp_email;
     `;
     const updateResult = await mxdatabase.query(updateQuery, [email, verificationToken, userId]);
 
-    // Create the verification URL
-      const apiUrl = await getWorkingAPI();
-    const verificationUrl = `${apiUrl}/verify-email?token=${verificationToken}`;
+    // Create verification URL
+    const apiUrl = await getWorkingAPI();
+    const verificationUrl = `${apiUrl}/mx/verify-email?token=${verificationToken}`;
     const subject = "Verify your new email on MSWORLD";
     const message = `Please click the following link to verify your new email address: <a href="${verificationUrl}">${verificationUrl}</a>`;
 
-    // Sending email via SMTP
+    // Send email
     let transporter = nodemailer.createTransport({
-      service: "gmail", // You can use any other email service provider here
+      service: "gmail",
       auth: {
         user: process.env.SMTP_EMAIL,
         pass: process.env.SMTP_PASSWORD,
@@ -316,7 +328,7 @@ router.put("/change-email", verifyToken, async (req, res) => {
     const mailOptions = {
       from: `"MSWORLD Support Team" <${process.env.SMTP_EMAIL}>`,
       to: email,
-      subject: subject,
+      subject,
       html: `<div style="font-family: Arial, sans-serif; padding: 10px; background: #f4f4f4; border-radius: 5px;">
                <h2 style="color: #333;">${subject}</h2>
                <p style="color: #555;">${message}</p>
@@ -332,8 +344,7 @@ router.put("/change-email", verifyToken, async (req, res) => {
 
     await transporter.sendMail(mailOptions);
 
-    // Respond back to the client
-    res.status(200).json({ message: "A verification link has been sent to your new email address." });
+    res.status(200).json({ message: "✅ A verification link has been sent to your new email address." });
   } catch (err) {
     console.error("Change email error:", err);
     res.status(500).json({ message: "Server error" });
