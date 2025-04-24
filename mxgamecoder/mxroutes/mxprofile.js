@@ -9,6 +9,8 @@ const { CloudinaryStorage } = require("multer-storage-cloudinary");
 require("dotenv").config();
 const { v4: uuidv4 } = require('uuid');
 const nodemailer = require("nodemailer");
+const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const { getWorkingAPI } = require("../mxconfig/mxapi");
 
 // JWT Middleware
@@ -504,5 +506,110 @@ router.get("/verify-phone", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
+// PUT /change-password
+router.put("/change-password", verifyToken, async (req, res) => {
+  try {
+    const { userId } = req;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword)
+      return res.status(400).json({ message: "All fields are required" });
+
+    const query = `SELECT password_hash, last_password_change, username FROM users WHERE id = $1`;
+    const userResult = await mxdatabase.query(query, [userId]);
+    const user = userResult.rows[0];
+
+    if (!user)
+      return res.status(404).json({ message: "User not found" });
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!isMatch)
+      return res.status(401).json({ message: "Wrong current password" });
+
+    const cooldown = 5 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    if (user.last_password_change) {
+      const lastChange = new Date(user.last_password_change).getTime();
+      const elapsed = now - lastChange;
+      if (elapsed < cooldown) {
+        const left = Math.ceil((cooldown - elapsed) / (1000 * 60 * 60 * 24));
+        return res.status(429).json({ message: `⏳ Wait ${left} more day(s) before another password change.` });
+      }
+    }
+
+    const isSameAsOld = await bcrypt.compare(newPassword, user.password_hash);
+    if (isSameAsOld)
+      return res.status(400).json({ message: "❗New password cannot be same as current one." });
+
+    const hash = await bcrypt.hash(newPassword, 10);
+    const token = uuidv4();
+
+    await mxdatabase.query(`
+      UPDATE users SET temp_password = $1, verification_token = $2, last_password_change = NOW()
+      WHERE id = $3
+    `, [hash, token, userId]);
+
+    const apiUrl = await getWorkingAPI();
+    const link = `${apiUrl}/mx/verify-password?token=${token}`;
+    const subject = "Verify your new password on MSWORLD";
+    const html = `
+      <h2>Password Change Verification</h2>
+      <p>Click to verify: <a href="${link}">${link}</a></p>`;
+
+    let transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.SMTP_EMAIL,
+        pass: process.env.SMTP_PASSWORD,
+      },
+      secure: true,
+      tls: { rejectUnauthorized: false },
+    });
+
+    await transporter.sendMail({
+      from: `"MSWORLD Security" <${process.env.SMTP_EMAIL}>`,
+      to: req.user.email,
+      subject,
+      html,
+    });
+
+    res.status(200).json({ message: "✅ Verification link sent to your email." });
+
+  } catch (err) {
+    console.error("Change password error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// GET /verify-password
+router.get("/verify-password", async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token)
+      return res.status(400).json({ message: "Token missing" });
+
+    const result = await mxdatabase.query(`
+      SELECT id, temp_password FROM users WHERE verification_token = $1
+    `, [token]);
+
+    const user = result.rows[0];
+    if (!user)
+      return res.status(400).json({ message: "Invalid token" });
+
+    await mxdatabase.query(`
+      UPDATE users SET password_hash = $1, temp_password = NULL, verification_token = NULL
+      WHERE id = $2
+    `, [user.temp_password, user.id]);
+
+    res.redirect("http://mxgamecoder.lovestoblog.com/mxverify.html");
+
+  } catch (err) {
+    console.error("Password verify error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 
 module.exports = router;
