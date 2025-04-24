@@ -381,4 +381,10 @@ router.get("/verify-email", async (req, res) => {
   }
 });
 
+console.log("Generated token:", verificationToken);
+console.log("Token created at:", tokenCreatedAt);
+console.log("Received token:", token);
+console.log("Verification URL:", verificationUrl);
+
+
 module.exports = router;
