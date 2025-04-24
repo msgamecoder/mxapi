@@ -388,4 +388,8 @@ router.get("/verify-email", async (req, res) => {
   }
 });
 
+console.log("Token from URL:", token);
+console.log("Token in database:", user.verification_token);
+
+
 module.exports = router;
