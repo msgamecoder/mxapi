@@ -7,6 +7,7 @@ const multer = require("multer");
 const cloudinary = require("cloudinary").v2;
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 require("dotenv").config();
+const { v4: uuidv4 } = require('uuid');
 
 // JWT Middleware
 function verifyToken(req, res, next) {
