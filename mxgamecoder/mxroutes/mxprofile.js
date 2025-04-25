@@ -69,6 +69,10 @@ async function validateUrl(url) {
 
 // PUT /profile with image upload
 router.put("/profile", verifyToken, upload.single("profile_picture"), async (req, res) => {
+  const cooldownCheck = await mxcooldown.checkAndUpdateCooldown(req.userId, "update-profile-picture");
+  if (cooldownCheck.cooldown) {
+    return res.status(429).json({ message: `🚫 Too many attempts. Try again in ${cooldownCheck.remaining}s.` });
+  }
   try {
     const { userId } = req;
     const { username, phone_number, location, bio } = req.body;
@@ -150,6 +154,10 @@ router.put("/profile", verifyToken, upload.single("profile_picture"), async (req
 
 // Get last username change timestamp
 router.get("/last-username-change", verifyToken, async (req, res) => {
+  const cooldownCheck = await mxcooldown.checkAndUpdateCooldown(req.userId, "change-username");
+  if (cooldownCheck.cooldown) {
+    return res.status(429).json({ message: `🚫 Too many attempts. Try again in ${cooldownCheck.remaining}s.` });
+  }
   try {
     const { userId } = req;
 
@@ -257,6 +265,10 @@ router.get("/last-name-change", verifyToken, async (req, res) => {
 
 // PUT /change-email
 router.put("/change-email", verifyToken, async (req, res) => {
+  const cooldownCheck = await mxcooldown.checkAndUpdateCooldown(req.userId, "change-email");
+  if (cooldownCheck.cooldown) {
+    return res.status(429).json({ message: `🚫 Too many attempts. Try again in ${cooldownCheck.remaining}s.` });
+  }
   try {
     const { userId } = req;
     const { email } = req.body;
@@ -403,6 +415,10 @@ router.get("/verify-email", async (req, res) => {
 
 // PUT /change-phone
 router.put("/change-phone", verifyToken, async (req, res) => {
+  const cooldownCheck = await mxcooldown.checkAndUpdateCooldown(req.userId, "change-phone");
+  if (cooldownCheck.cooldown) {
+    return res.status(429).json({ message: `🚫 Too many attempts. Try again in ${cooldownCheck.remaining}s.` });
+  }
   try {
     const { userId } = req;
     const { phone_number } = req.body;
