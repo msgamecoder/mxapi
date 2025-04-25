@@ -97,6 +97,10 @@ router.get("/confirm-delete", async (req, res) => {
         await pool.query(`
             UPDATE deletion_requests SET confirmed = TRUE, delete_count = delete_count + 1 WHERE email = $1
         `, [email]);
+        
+        await pool.query(`
+            UPDATE users SET is_deleting = TRUE WHERE id = $1
+        `, [user.id]);        
 
         // 🗑️ Delete user after 12 hours
         setTimeout(async () => {
@@ -114,8 +118,7 @@ router.get("/confirm-delete", async (req, res) => {
         };
 
         await transporter.sendMail(finalMailOptions);
-        res.send("✅ Account deletion confirmed! Your account will be deleted in 12 hours.");
-
+        res.redirect("https://mxgamecoder.lovestoblog.com/mxdelete.html");
     } catch (error) {
         console.error("❌ Deletion confirmation error:", error);
         res.status(500).send("⚠️ Internal server error.");
