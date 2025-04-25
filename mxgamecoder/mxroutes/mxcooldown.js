@@ -2,9 +2,11 @@
 const mxdatabase = require("../mxconfig/mxdatabase");
 
 const routeCooldowns = {
-  "change-password": { cooldownPeriod: 2 * 60 * 1000, actionLimit: 6 }, // 2 mins, 6 actions
-  "update-profile-picture": { cooldownPeriod: 5 * 60 * 1000, actionLimit: 3 }, // 5 mins, 3 actions
-  // Add more routes if needed
+  "change-password": { cooldownPeriod: 2 * 60 * 1000, actionLimit: 5 }, // 2 mins, 5 actions
+  "change-phone": { cooldownPeriod: 5 * 60 * 1000, actionLimit: 5 },    // 5 mins, 5 actions
+  "change-email": { cooldownPeriod: 10 * 60 * 1000, actionLimit: 3 },   // 🔒 10 mins, 3 actions
+  "update-profile-picture": { cooldownPeriod: 3 * 60 * 1000, actionLimit: 5 }, // 3 mins, 5 actions
+  "change-username": { cooldownPeriod: 15 * 60 * 1000, actionLimit: 2 }, // 🛡️ 15 mins, 2 actions
 };
 
 module.exports = {
