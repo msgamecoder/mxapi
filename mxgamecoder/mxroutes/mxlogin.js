@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../mxconfig/mxdatabase'); // Database connection
-const bcrypt = require('bcryptjs'); // For password hashing
-const jwt = require('jsonwebtoken'); // JWT for authentication
+const pool = require('../mxconfig/mxdatabase');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const { sendEmailNotification } = require("../mxutils/mxnotify");
 
@@ -10,9 +10,9 @@ router.post('/', async (req, res) => {
     try {
         const { identifier, password } = req.body;
 
-        // 🔍 Find user by email or username
+        // 🔍 Find user by email or username (include is_deleting)
         const userQuery = `
-            SELECT id, username, LOWER(email) AS email, password_hash 
+            SELECT id, username, LOWER(email) AS email, password_hash, is_deleting
             FROM users 
             WHERE LOWER(email) = LOWER($1) OR username = $1
         `;
@@ -24,7 +24,12 @@ router.post('/', async (req, res) => {
 
         const user = result.rows[0];
 
-        // 🔑 Verify password using bcrypt.compare()
+        // ⛔ Check if account is being deleted
+        if (user.is_deleting) {
+            return res.status(403).json({ error: "⛔ Account is in the process of deletion. Login is disabled." });
+        }
+
+        // 🔑 Verify password
         const isMatch = await bcrypt.compare(password, user.password_hash);
         if (!isMatch) {
             return res.status(401).json({ error: '🚫 Incorrect password' });
@@ -37,17 +42,17 @@ router.post('/', async (req, res) => {
             { expiresIn: '7d' }
         );
 
-        // ✅ Send the token to the user after successful login
+        // ✅ Send the token
         res.status(200).json({ message: "✅ Login successful", token });
 
-        // 📩 Send email notification if email exists
+        // 📩 Send email notification
         if (user.email) {
             sendEmailNotification(
                 user.email, 
                 "New Login Detected", 
                 "You just logged into your MSWORLD account.", 
                 user.username, 
-                user.id  // Pass the user ID as UID here
+                user.id
             ).catch(err => console.error("❌ Email failed:", err));
         }
 
