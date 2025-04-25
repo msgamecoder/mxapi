@@ -154,10 +154,6 @@ router.put("/profile", verifyToken, upload.single("profile_picture"), async (req
 
 // Get last username change timestamp
 router.get("/last-username-change", verifyToken, async (req, res) => {
-  const cooldownCheck = await mxcooldown.checkAndUpdateCooldown(req.userId, "change-username");
-  if (cooldownCheck.cooldown) {
-    return res.status(429).json({ message: `🚫 Too many attempts. Try again in ${cooldownCheck.remaining}s.` });
-  }
   try {
     const { userId } = req;
 
