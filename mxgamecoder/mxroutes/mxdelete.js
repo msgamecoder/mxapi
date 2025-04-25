@@ -1,18 +1,9 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../mxconfig/mxdatabase");
-const fs = require("fs");
-const path = require("path");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
-
-// 📂 Folders for storing deletion requests & deleted users
-const deleteRequestsFolder = path.join(__dirname, "../mxdelete_requests");
-const deletedUsersFolder = path.join(__dirname, "../mxdeleted_users");
-
-// Ensure directories exist
-if (!fs.existsSync(deleteRequestsFolder)) fs.mkdirSync(deleteRequestsFolder, { recursive: true });
-if (!fs.existsSync(deletedUsersFolder)) fs.mkdirSync(deletedUsersFolder, { recursive: true });
+const { getWorkingAPI } = require("../mxconfig/mxapi");
 
 // 📧 Setup Nodemailer
 const transporter = nodemailer.createTransport({
@@ -33,37 +24,33 @@ router.post("/delete-account", async (req, res) => {
 
         // 🔍 Check if user exists in the database
         const userResult = await pool.query("SELECT * FROM users WHERE email = $1 AND username = $2", [email, username]);
-
         if (userResult.rowCount === 0) {
             return res.status(404).json({ error: "❌ Account not found." });
         }
 
         const user = userResult.rows[0];
 
-        // 🔍 Check if the user has deleted their account before
-        const userFile = path.join(deletedUsersFolder, `${email}.json`);
-        let deleteCount = 0;
-
-        if (fs.existsSync(userFile)) {
-            const userData = JSON.parse(fs.readFileSync(userFile, "utf8"));
-            deleteCount = userData.deleteCount || 0;
-
-            // 🚫 Ban user if they deleted their account 5 times
-            if (deleteCount >= 5) {
-                return res.status(403).json({ error: "🚫 Account permanently banned due to excessive deletions." });
-            }
+        // 🔍 Check if the user has exceeded the deletion limit
+        const deleteCountResult = await pool.query("SELECT delete_count FROM deletion_requests WHERE user_id = $1", [user.id]);
+        let deleteCount = deleteCountResult.rows[0]?.delete_count || 0;
+        if (deleteCount >= 5) {
+            return res.status(403).json({ error: "🚫 Account permanently banned due to excessive deletions." });
         }
 
         // 🔑 Generate a confirmation token
         const token = crypto.randomBytes(32).toString("hex");
-        const expiration = Date.now() + 10 * 60 * 1000; // Token expires in 10 minutes
+        const expiration = new Date(Date.now() + 10 * 60 * 1000); // Token expires in 10 minutes
 
-        // Save deletion request
-        const requestData = { email, username, reason, token, expiration, userId: user.id };
-        fs.writeFileSync(path.join(deleteRequestsFolder, `${email}.json`), JSON.stringify(requestData, null, 2));
+        // Save deletion request in the database
+        await pool.query(`
+            INSERT INTO deletion_requests (user_id, email, username, reason, token, expiration)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        `, [user.id, email, username, reason, token, expiration]);
 
         // 📧 Send confirmation email
-        const confirmLink = `http://localhost:5000/mx/confirm-delete?token=${token}&email=${encodeURIComponent(email)}`;
+        const apiUrl = await getWorkingAPI(); // Dynamically get the API URL
+        const confirmLink = `${apiUrl}/mx/confirm-delete?token=${token}&email=${encodeURIComponent(email)}`;
+        
         const mailOptions = {
             from: process.env.SMTP_EMAIL,
             to: email,
@@ -78,7 +65,7 @@ router.post("/delete-account", async (req, res) => {
         res.status(200).json({ message: "📧 Confirmation email sent. Check your inbox!" });
 
     } catch (error) {
-        console.error("❌ Email sending error:", error);
+        console.error("❌ Error:", error);
         res.status(500).json({ error: "⚠️ Internal server error. Try again." });
     }
 });
@@ -87,68 +74,46 @@ router.post("/delete-account", async (req, res) => {
 router.get("/confirm-delete", async (req, res) => {
     try {
         const { token, email } = req.query;
-        const filePath = path.join(deleteRequestsFolder, `${email}.json`);
 
-        if (!fs.existsSync(filePath)) {
+        const requestDataResult = await pool.query("SELECT * FROM deletion_requests WHERE email = $1 AND token = $2", [email, token]);
+        if (requestDataResult.rowCount === 0) {
             return res.status(400).send("❌ Invalid or expired request.");
         }
 
-        // Load stored data
-        const requestData = JSON.parse(fs.readFileSync(filePath, "utf8"));
-
-        if (requestData.token !== token || Date.now() > requestData.expiration) {
-            return res.status(400).send("❌ Token expired or invalid.");
+        const requestData = requestDataResult.rows[0];
+        if (Date.now() > new Date(requestData.expiration).getTime()) {
+            return res.status(400).send("❌ Token expired.");
         }
 
-        const userId = requestData.userId;
-
-        // 🔍 Get full user details before deletion
-        const userResult = await pool.query("SELECT * FROM users WHERE id = $1", [userId]);
+        // 🔍 Get user details
+        const userResult = await pool.query("SELECT * FROM users WHERE id = $1", [requestData.user_id]);
         if (userResult.rowCount === 0) {
             return res.status(404).send("❌ User not found.");
         }
+
         const user = userResult.rows[0];
 
-        // 📝 Store full deleted user info
-        const deletedData = {
-            ...user,
-            reason: requestData.reason,
-            deletedAt: new Date().toISOString(),
-            deleteCount: (fs.existsSync(path.join(deletedUsersFolder, `${email}.json`))) 
-                ? JSON.parse(fs.readFileSync(path.join(deletedUsersFolder, `${email}.json`), "utf8")).deleteCount + 1 
-                : 1
-        };
+        // 📝 Update deletion count and delete user after confirmation
+        await pool.query(`
+            UPDATE deletion_requests SET confirmed = TRUE, delete_count = delete_count + 1 WHERE email = $1
+        `, [email]);
 
-        fs.writeFileSync(path.join(deletedUsersFolder, `${email}.json`), JSON.stringify(deletedData, null, 2));
-
-        // ⏳ Schedule permanent deletion (12 hours)
+        // 🗑️ Delete user after 12 hours
         setTimeout(async () => {
-            try {
-                await pool.query("DELETE FROM users WHERE id = $1", [userId]);
-                console.log(`🗑️ User ${userId} permanently deleted.`);
-
-                // 📧 Send final deletion email
-                const finalMailOptions = {
-                    from: process.env.SMTP_EMAIL,
-                    to: email,
-                    subject: "Account Deleted Successfully",
-                    html: `<p>Hello <b>${user.username}</b>,</p>
-                           <p>Your account has been successfully deleted from our system.</p>
-                           <p>If you ever want to come back, you can create a new account anytime.</p>
-                           <p>Thank you for being with us.</p>`
-                };
-
-                await transporter.sendMail(finalMailOptions);
-                console.log("📧 Final deletion email sent.");
-
-            } catch (err) {
-                console.error("❌ Error deleting user from DB:", err.message);
-            }
+            await pool.query("DELETE FROM users WHERE id = $1", [user.id]);
+            console.log(`🗑️ User ${user.id} permanently deleted.`);
         }, 12 * 60 * 60 * 1000); // 12 hours
 
-        // Remove pending request file
-        fs.unlinkSync(filePath);
+        // 📧 Send final confirmation email
+        const finalMailOptions = {
+            from: process.env.SMTP_EMAIL,
+            to: email,
+            subject: "Account Deleted Successfully",
+            html: `<p>Hello <b>${user.username}</b>,</p>
+                   <p>Your account has been successfully deleted from our system.</p>`
+        };
 
+        await transporter.sendMail(finalMailOptions);
         res.send("✅ Account deletion confirmed! Your account will be deleted in 12 hours.");
 
     } catch (error) {
