@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../mxconfig/mxdatabase");
 
-router.get("/deactivation-status", authenticateToken, async (req, res) => {
+router.get("/deactivation-status", async (req, res) => {
     try {
         const userId = req.user.id; // JWT user id
 
@@ -41,7 +41,7 @@ router.get("/deactivation-status", authenticateToken, async (req, res) => {
 });
 
 // Reactivate Account (forgiving version)
-router.post('/reactivate', authenticateToken, async (req, res) => {
+router.post('/reactivate', async (req, res) => {
     try {
       const userId = req.user.id;
   
