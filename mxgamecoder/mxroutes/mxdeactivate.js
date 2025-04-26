@@ -44,17 +44,15 @@ router.post("/deactivate-account", async (req, res) => {
         }
 
         const token = crypto.randomBytes(32).toString("hex");
-        const expiration = new Date(Date.now() + 10 * 60 * 1000); // 10 mins to confirm
+        const expiration = new Date(Date.now() + 10 * 60 * 1000); // 10 mins
 
         await pool.query(`
             INSERT INTO deactivation_requests (user_id, email, username, reason, token, expiration, is_premium, days)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         `, [user.id, email, username, reason, token, expiration, isPremium, numericDays]);
 
-        // 🔥 Send response immediately (no delay)
         res.status(200).json({ message: "📧 Confirmation email is being sent." });
 
-        // 📧 Now send email in the background (no await)
         const apiUrl = await getWorkingAPI();
         const confirmLink = `${apiUrl}/mx/confirm-deactivate?token=${token}&email=${encodeURIComponent(email)}`;
         const mailOptions = {
@@ -64,7 +62,7 @@ router.post("/deactivate-account", async (req, res) => {
             html: `
                 <p>Hello <b>${username}</b>,</p>
                 <p>You requested to deactivate your MSWORLD account.</p>
-                <p>Click the button below to confirm:</p>
+                <p>Click below to confirm:</p>
                 <a href="${confirmLink}" style="color: orange; font-weight: bold;">✅ Confirm Deactivation</a>
                 <p>This link expires in 10 minutes.</p>
             `
@@ -74,7 +72,7 @@ router.post("/deactivate-account", async (req, res) => {
             if (err) {
                 console.error("❌ Email sending failed:", err);
             } else {
-                console.log("📧 Email sent successfully:", info.response);
+                console.log("📧 Email sent:", info.response);
             }
         });
 
@@ -95,44 +93,50 @@ router.get("/confirm-deactivate", async (req, res) => {
         `, [email, token]);
 
         if (result.rowCount === 0) {
-            return res.status(400).send("❌ Invalid or expired token.");
+            return res.status(400).send(`
+                <div style="font-family: Arial; padding: 2rem; background: #ffe6e6; border-radius: 12px;">
+                    <h2 style="color: red;">❌ Invalid or expired verification link.</h2>
+                    <p>Please try requesting a new deactivation link.</p>
+                </div>
+            `);
         }
 
         const request = result.rows[0];
-        const now = Date.now();
+        const now = new Date();
 
-        if (now > new Date(request.expiration).getTime()) {
-            return res.status(400).send("❌ Token expired.");
+        if (now > new Date(request.expiration)) {
+            return res.status(400).send(`
+                <div style="font-family: Arial; padding: 2rem; background: #ffe6e6; border-radius: 12px;">
+                    <h2 style="color: red;">⏰ Link Expired</h2>
+                    <p>The confirmation link has expired. Please request again.</p>
+                </div>
+            `);
         }
 
-        // Deactivate account
-        await pool.query("UPDATE users SET is_deactivated = TRUE WHERE id = $1", [request.user_id]);
+        // Deactivate user immediately
+        await pool.query("UPDATE users SET is_deactivated = TRUE, reactivate_at = $1 WHERE id = $2", [
+            new Date(Date.now() + (request.days * 24 * 60 * 60 * 1000)), // save when to reactivate
+            request.user_id
+        ]);
+
         await pool.query("UPDATE deactivation_requests SET confirmed = TRUE WHERE token = $1", [token]);
-
-        const durationDays = Number(request.days) || 14;
-        const durationMs = durationDays * 24 * 60 * 60 * 1000;
-
-        // Reactivate after N days
-        setTimeout(async () => {
-            try {
-                await pool.query("UPDATE users SET is_deactivated = FALSE WHERE id = $1", [request.user_id]);
-                console.log(`✅ User ${request.username} reactivated automatically after ${durationDays} days.`);
-            } catch (err) {
-                console.error("⚠️ Auto-reactivation failed:", err);
-            }
-        }, durationMs);
 
         return res.send(`
             <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 1.5rem; background: #f8f8f8; border-radius: 12px;">
-                <h2 style="color: orange;">Account Deactivation Confirmed</h2>
-                <p><strong>${request.username}</strong>, your account is now deactivated for <b>${durationDays} days</b>.</p>
-                <p>You will receive an automatic reactivation after the selected duration.</p>
+                <h2 style="color: orange;">✅ Account Deactivation Confirmed</h2>
+                <p><strong>${request.username}</strong>, your account is now deactivated for <b>${request.days} days</b>.</p>
+                <p>You will automatically be reactivated after that.</p>
                 <p>Thank you for using MSWORLD!</p>
             </div>
         `);
     } catch (err) {
         console.error("❌ Confirm error:", err);
-        res.status(500).send("⚠️ Something went wrong. Please try again later.");
+        res.status(500).send(`
+            <div style="font-family: Arial; padding: 2rem; background: #ffe6e6; border-radius: 12px;">
+                <h2 style="color: red;">⚠️ Server error</h2>
+                <p>Please try again later.</p>
+            </div>
+        `);
     }
 });
 
