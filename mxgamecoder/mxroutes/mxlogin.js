@@ -10,9 +10,9 @@ router.post('/', async (req, res) => {
     try {
         const { identifier, password } = req.body;
 
-        // 🔍 Find user by email or username (include is_deleting)
+        // 🔍 Find user by email or username (include is_deactivated)
         const userQuery = `
-            SELECT id, username, LOWER(email) AS email, password_hash, is_deleting
+            SELECT id, username, LOWER(email) AS email, password_hash, is_deactivated, deactivation_date, premium
             FROM users 
             WHERE LOWER(email) = LOWER($1) OR username = $1
         `;
@@ -23,6 +23,19 @@ router.post('/', async (req, res) => {
         }
 
         const user = result.rows[0];
+
+        // ⛔ Check if account is deactivated
+        if (user.is_deactivated) {
+            // Calculate remaining days until reactivation
+            const deactivationDate = new Date(user.deactivation_date);
+            const today = new Date();
+            const remainingDays = Math.ceil((deactivationDate - today) / (1000 * 60 * 60 * 24)); // days remaining
+
+            return res.status(403).json({
+                error: `⛔ Your account is deactivated. Reactivation will occur in ${remainingDays} days.`,
+                isPremium: user.premium
+            });
+        }
 
         // ⛔ Check if account is being deleted
         if (user.is_deleting) {
@@ -37,8 +50,8 @@ router.post('/', async (req, res) => {
 
         // 🎫 Generate JWT Token (expires in 7 days)
         const token = jwt.sign(
-            { id: user.id, username: user.username }, 
-            process.env.JWT_SECRET, 
+            { id: user.id, username: user.username },
+            process.env.JWT_SECRET,
             { expiresIn: '7d' }
         );
 
@@ -48,10 +61,10 @@ router.post('/', async (req, res) => {
         // 📩 Send email notification
         if (user.email) {
             sendEmailNotification(
-                user.email, 
-                "New Login Detected", 
-                "You just logged into your MSWORLD account.", 
-                user.username, 
+                user.email,
+                "New Login Detected",
+                "You just logged into your MSWORLD account.",
+                user.username,
                 user.id
             ).catch(err => console.error("❌ Email failed:", err));
         }
