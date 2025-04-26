@@ -10,9 +10,9 @@ router.post('/', async (req, res) => {
     try {
         const { identifier, password } = req.body;
 
-        // 🔍 Find user by email or username (include is_deactivated)
+        // 🔍 Find user by email or username (include is_deleting and is_deactivated)
         const userQuery = `
-            SELECT id, username, LOWER(email) AS email, password_hash, is_deactivated, deactivation_date, premium
+            SELECT id, username, LOWER(email) AS email, password_hash, is_deleting, is_deactivated
             FROM users 
             WHERE LOWER(email) = LOWER($1) OR username = $1
         `;
@@ -23,19 +23,6 @@ router.post('/', async (req, res) => {
         }
 
         const user = result.rows[0];
-
-        // ⛔ Check if account is deactivated
-        if (user.is_deactivated) {
-            // Calculate remaining days until reactivation
-            const deactivationDate = new Date(user.deactivation_date);
-            const today = new Date();
-            const remainingDays = Math.ceil((deactivationDate - today) / (1000 * 60 * 60 * 24)); // days remaining
-
-            return res.status(403).json({
-                error: `⛔ Your account is deactivated. Reactivation will occur in ${remainingDays} days.`,
-                isPremium: user.premium
-            });
-        }
 
         // ⛔ Check if account is being deleted
         if (user.is_deleting) {
@@ -55,7 +42,16 @@ router.post('/', async (req, res) => {
             { expiresIn: '7d' }
         );
 
-        // ✅ Send the token
+        // ✅ If deactivated, send a special response
+        if (user.is_deactivated) {
+            return res.status(200).json({
+                message: "⚠️ Account deactivated",
+                token,
+                redirect: "https://mxgamecoder.lovestoblog.com/deactivated.html"
+            });
+        }
+
+        // ✅ Normal login
         res.status(200).json({ message: "✅ Login successful", token });
 
         // 📩 Send email notification
