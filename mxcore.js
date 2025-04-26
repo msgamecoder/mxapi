@@ -76,6 +76,9 @@ app.use("/mx", updateNotify);
 const mxdeactivate = require("./mxgamecoder/mxroutes/mxdeactivate");
 app.use("/mx", mxdeactivate);
 
+const deactivationStatus = require("./mxgamecoder/mxroutes/deactivation-status");
+app.use("/mx", deactivationStatus);
+
 // Start Server
 app.listen(PORT, async () => {
     try {
