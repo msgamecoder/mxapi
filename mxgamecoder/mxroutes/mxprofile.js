@@ -87,7 +87,7 @@ router.put("/profile", verifyToken, upload.single("profile_picture"), async (req
     }
 
     if (username && username !== currentUser.username) {
-      const cooldownTime = 7 * 24 * 60 * 60 * 1000;
+      const cooldownTime = 14 * 24 * 60 * 60 * 1000;
       if (currentUser.last_username_change && now - currentUser.last_username_change < cooldownTime) {
         const secondsLeft = Math.ceil((cooldownTime - (now - currentUser.last_username_change)) / 1000);
         return res.status(400).json({ message: `You can change your username again in ${secondsLeft} seconds.` });
