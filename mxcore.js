@@ -73,6 +73,8 @@ app.use("/mx/notifications", mxnotifyRoutes);
 const updateNotify = require("./mxgamecoder/mxutils/updateNotify");
 app.use("/mx", updateNotify);
 
+const mxdeactivate = require("./mxgamecoder/mxroutes/mxdeactivate");
+app.use("/mx", mxdeactivate);
 
 // Start Server
 app.listen(PORT, async () => {
