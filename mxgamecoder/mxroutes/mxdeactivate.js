@@ -96,10 +96,12 @@ router.get("/confirm-deactivate", async (req, res) => {
             `);
         }
 
+        const decodedEmail = decodeURIComponent(email);
+
         const result = await pool.query(`
             SELECT * FROM deactivation_requests 
             WHERE email = $1 AND token = $2 AND confirmed = FALSE
-        `, [email, token]);
+        `, [decodedEmail, token]);
 
         if (result.rowCount === 0) {
             return res.status(400).send(`
@@ -114,7 +116,6 @@ router.get("/confirm-deactivate", async (req, res) => {
         const now = new Date();
         const expiration = new Date(request.expiration);
 
-        // 🕒 If link expired, delete it immediately
         if (now > expiration) {
             await pool.query("DELETE FROM deactivation_requests WHERE token = $1", [token]);
             return res.status(400).send(`
@@ -125,17 +126,15 @@ router.get("/confirm-deactivate", async (req, res) => {
             `);
         }
 
-        // 🚀 Deactivate user
         await pool.query(`
             UPDATE users 
             SET is_deactivated = TRUE, reactivate_at = $1 
             WHERE id = $2
         `, [
-            new Date(Date.now() + (request.days * 24 * 60 * 60 * 1000)), // reactivate after X days
+            new Date(Date.now() + (request.days * 24 * 60 * 60 * 1000)),
             request.user_id
         ]);
 
-        // 🔒 Mark deactivation request as confirmed
         await pool.query(`
             UPDATE deactivation_requests 
             SET confirmed = TRUE 
