@@ -45,9 +45,9 @@ router.post("/deactivate-account", authMiddleware, async (req, res) => {
         deactivateUntil.setDate(deactivateUntil.getDate() + numericDays);
 
         await pool.query(
-            "UPDATE users SET deactivated = $1, deactivated_until = $2 WHERE id = $3", 
+            "UPDATE users SET is_deactivated = $1, deactivated_until = $2 WHERE id = $3", 
             [true, deactivateUntil, req.user.id]
-        );
+        );        
 
         await transporter.sendMail({
             from: process.env.SMTP_EMAIL,
