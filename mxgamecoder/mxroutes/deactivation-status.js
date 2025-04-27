@@ -8,7 +8,7 @@ router.get("/deactivation-status", async (req, res) => {
         const userId = req.user.id; // JWT user id
 
         const result = await pool.query(`
-            SELECT is_deactivated, reactivate_at 
+            SELECT is_deactivated, deactivated_until 
             FROM users 
             WHERE id = $1
         `, [userId]);
@@ -24,13 +24,13 @@ router.get("/deactivation-status", async (req, res) => {
         }
 
         const now = new Date();
-        const reactivateAt = new Date(user.reactivate_at);
+        const reactivateAt = new Date(user.deactivated_until);
         const remainingMs = reactivateAt - now;
         const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
 
         res.json({
             status: "deactivated",
-            reactivateAt: user.reactivate_at,
+            reactivateAt: user.deactivated_until,
             remainingDays: remainingDays
         });
 
@@ -63,7 +63,7 @@ router.post('/reactivate', async (req, res) => {
   
       await pool.query(`
         UPDATE users 
-        SET is_deactivated = false, reactivate_at = NULL
+        SET is_deactivated = false, deactivated_until = NULL
         WHERE id = $1
       `, [userId]);
   
