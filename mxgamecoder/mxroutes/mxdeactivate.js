@@ -48,8 +48,8 @@ router.post("/deactivate-account", async (req, res) => {
 
         await pool.query(`
             INSERT INTO deactivation_requests (user_id, email, username, reason, token, expiration, is_premium, days, confirmed)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE)
-        `, [user.id, email, username, reason, token, expiration, isPremium, numericDays]);
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `, [user.id, email, username, reason, token, expiration, isPremium, numericDays, false]);        
         
         res.status(200).json({ message: "📧 Confirmation email is being sent." });
 
