@@ -82,44 +82,65 @@ router.post("/deactivate-account", async (req, res) => {
     }
 });
 
-// ✅ Confirm Deactivation
+// ✅ Confirm Deactivation (Improved)
 router.get("/confirm-deactivate", async (req, res) => {
     try {
         const { token, email } = req.query;
 
+        if (!token || !email) {
+            return res.status(400).send(`
+                <div style="font-family: Arial; padding: 2rem; background: #ffe6e6; border-radius: 12px;">
+                    <h2 style="color: red;">❌ Invalid request.</h2>
+                    <p>Missing required information.</p>
+                </div>
+            `);
+        }
+
         const result = await pool.query(`
             SELECT * FROM deactivation_requests 
-            WHERE email = $1 AND token = $2 AND confirmed = false
+            WHERE email = $1 AND token = $2 AND confirmed = FALSE
         `, [email, token]);
 
         if (result.rowCount === 0) {
             return res.status(400).send(`
                 <div style="font-family: Arial; padding: 2rem; background: #ffe6e6; border-radius: 12px;">
                     <h2 style="color: red;">❌ Invalid or expired verification link.</h2>
-                    <p>Please try requesting a new deactivation link.</p>
+                    <p>The link may have already been used or expired. Please request a new one if needed.</p>
                 </div>
             `);
         }
 
         const request = result.rows[0];
         const now = new Date();
+        const expiration = new Date(request.expiration);
 
-        if (now > new Date(request.expiration)) {
+        // 🕒 If link expired, delete it immediately
+        if (now > expiration) {
+            await pool.query("DELETE FROM deactivation_requests WHERE token = $1", [token]);
             return res.status(400).send(`
                 <div style="font-family: Arial; padding: 2rem; background: #ffe6e6; border-radius: 12px;">
                     <h2 style="color: red;">⏰ Link Expired</h2>
-                    <p>The confirmation link has expired. Please request again.</p>
+                    <p>The confirmation link has expired and has been removed. Please request again.</p>
                 </div>
             `);
         }
 
-        // Deactivate user immediately
-        await pool.query("UPDATE users SET is_deactivated = TRUE, reactivate_at = $1 WHERE id = $2", [
-            new Date(Date.now() + (request.days * 24 * 60 * 60 * 1000)), // save when to reactivate
+        // 🚀 Deactivate user
+        await pool.query(`
+            UPDATE users 
+            SET is_deactivated = TRUE, reactivate_at = $1 
+            WHERE id = $2
+        `, [
+            new Date(Date.now() + (request.days * 24 * 60 * 60 * 1000)), // reactivate after X days
             request.user_id
         ]);
 
-        await pool.query("UPDATE deactivation_requests SET confirmed = TRUE WHERE token = $1", [token]);
+        // 🔒 Mark deactivation request as confirmed
+        await pool.query(`
+            UPDATE deactivation_requests 
+            SET confirmed = TRUE 
+            WHERE token = $1
+        `, [token]);
 
         return res.send(`
             <div style="font-family: Arial; max-width: 600px; margin: auto; padding: 1.5rem; background: #f8f8f8; border-radius: 12px;">
@@ -129,6 +150,7 @@ router.get("/confirm-deactivate", async (req, res) => {
                 <p>Thank you for using MSWORLD!</p>
             </div>
         `);
+
     } catch (err) {
         console.error("❌ Confirm error:", err);
         res.status(500).send(`
