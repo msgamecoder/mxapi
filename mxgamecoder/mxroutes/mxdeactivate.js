@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../mxconfig/mxdatabase");
 const nodemailer = require("nodemailer");
-const authenticateToken = require("../middleware/authenticateToken");  // Import the authentication middleware
+const authenticateToken = require("../mxmiddleware/authMiddleware");  // Import the authentication middleware
 
 // 📧 Email Setup
 const transporter = nodemailer.createTransport({
