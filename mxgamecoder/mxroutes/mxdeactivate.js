@@ -3,7 +3,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../mxconfig/mxdatabase");
 const nodemailer = require("nodemailer");
-const authenticateToken = require("../mxmiddleware/authMiddleware");  // Import the authentication middleware
+const authMiddleware = require("../mxmiddleware/authMiddleware");  // Import the authentication middleware
 
 // 📧 Email Setup
 const transporter = nodemailer.createTransport({
@@ -15,7 +15,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // 📤 Request Deactivation
-router.post("/deactivate-account", authenticateToken, async (req, res) => {
+router.post("/deactivate-account", authMiddleware, async (req, res) => {
     try {
         const { reason, days } = req.body;
         if (!reason || !days) {
