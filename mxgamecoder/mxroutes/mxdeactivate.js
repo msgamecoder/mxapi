@@ -17,9 +17,10 @@ const transporter = nodemailer.createTransport({
 // 📤 Request Deactivation
 router.post("/deactivate-account", authMiddleware, async (req, res) => {
     try {
-        const { reason, days } = req.body;
-        if (!reason || !days) {
-            return res.status(400).json({ error: "❌ All fields are required." });
+        const { reason } = req.body; // No need for days in the request
+
+        if (!reason) {
+            return res.status(400).json({ error: "❌ Reason is required." });
         }
 
         const userResult = await pool.query(
@@ -30,30 +31,25 @@ router.post("/deactivate-account", authMiddleware, async (req, res) => {
         }
 
         const user = userResult.rows[0];
-        const isPremium = user.premium === true;
 
-        const numericDays = Number(days);
-        if (!numericDays || numericDays < 1 || (!isPremium && numericDays > 14)) {
-            return res.status(403).json({
-                error: isPremium 
-                    ? "❌ Invalid custom days requested." 
-                    : "❌ Only premium users can select custom deactivation days."
-            });
-        }
+        // Set the fixed deactivation period to 30 days for all users
+        const numericDays = 30;
 
         const deactivateUntil = new Date();
         deactivateUntil.setDate(deactivateUntil.getDate() + numericDays);
 
+        // Update the database
         await pool.query(
             "UPDATE users SET is_deactivated = $1, deactivated_until = $2 WHERE id = $3", 
             [true, deactivateUntil, req.user.id]
         );        
 
+        // Send email notification
         await transporter.sendMail({
             from: process.env.SMTP_EMAIL,
             to: user.email,
             subject: "Account Deactivation Confirmation",
-            text: `Your account has been successfully deactivated for ${numericDays} day(s). You can reactivate it anytime by logging in again.`,
+            text: `Your account has been successfully deactivated for 30 days. You can reactivate it anytime by logging in again. ⚡️`,
         });
 
         res.status(200).json({ message: "✅ Account deactivated successfully." });
