@@ -15,20 +15,17 @@ router.get("/sachat", authMiddleware, async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      // No user found
-      console.log("User not found");
-      return res.json({ success: false, message: "Account not found" });
+      // No user found, send an error response
+      return res.status(404).json({ error: "Account not found. Please sign up. ⚠️" });
     }
 
     const userData = result.rows[0];
 
     if (userData.phone_verified === true) {
       // ✅ Phone is verified
-      console.log("Phone verified");
       return res.json({ success: true, userVerified: true });
     } else {
       // 🔒 Phone is not verified
-      console.log("Phone not verified");
       return res.json({ success: true, userVerified: false });
     }
 
