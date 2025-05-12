@@ -80,7 +80,7 @@ const deactivationStatus = require("./mxgamecoder/mxroutes/deactivation-status")
 app.use("/mx", deactivationStatus);
 
 const sachat = require("./mxgamecoder/mxsachat/mxjoin");
-app.use("/mx/sachat", sachat);
+app.use("/mx", sachat);
 
 // Start Server
 app.listen(PORT, async () => {
