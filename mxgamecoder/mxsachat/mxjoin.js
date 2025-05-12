@@ -4,7 +4,7 @@ const pool = require("../mxconfig/mxdatabase"); // PostgreSQL DB connection
 const authMiddleware = require("../mxmiddleware/authMiddleware"); // JWT auth
 
 // Route: /mx/sachat/join
-router.get("/join", authMiddleware, async (req, res) => {
+router.get("/sachat", authMiddleware, async (req, res) => {
   try {
     const { user } = req; // user object from authMiddleware (decoded JWT)
 
