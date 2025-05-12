@@ -15,23 +15,26 @@ router.get("/sachat", authMiddleware, async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      // No user found, send to signup
-      return res.redirect("https://mxgamecoder.lovestoblog.com/signup.html");
+      // No user found
+      console.log("User not found");
+      return res.json({ success: false, message: "Account not found" });
     }
 
     const userData = result.rows[0];
 
     if (userData.phone_verified === true) {
       // ✅ Phone is verified
-      return res.redirect("https://mxgamecoder.lovestoblog.com/mxworld/mxsuccessful.html");
+      console.log("Phone verified");
+      return res.json({ success: true, userVerified: true });
     } else {
       // 🔒 Phone is not verified
-      return res.redirect("https://mxgamecoder.lovestoblog.com/mxworld/mxverify.html");
+      console.log("Phone not verified");
+      return res.json({ success: true, userVerified: false });
     }
 
   } catch (error) {
     console.error("Error in SaChat join route:", error.message);
-    return res.status(500).send("Internal Server Error");
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
