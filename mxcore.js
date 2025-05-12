@@ -85,6 +85,9 @@ app.use("/ms", sachat);
 const mxgenerateid = require("./mxgamecoder/mxsachat/mxgenerateid");
 app.use("/ms", mxgenerateid);
 
+const mxaddcontact = require("./mxgamecoder/mxsachat/mxaddcontact");
+app.use("/ms", mxaddcontact);
+
 // Start Server
 app.listen(PORT, async () => {
     try {
