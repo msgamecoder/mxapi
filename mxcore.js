@@ -82,6 +82,9 @@ app.use("/mx", deactivationStatus);
 const sachat = require("./mxgamecoder/mxsachat/mxjoin");
 app.use("/ms", sachat);
 
+const mxgenerateid = require("./mxgamecoder/mxsachat/mxgenerateid");
+app.use("/ms", mxgenerateid);
+
 // Start Server
 app.listen(PORT, async () => {
     try {
