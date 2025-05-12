@@ -8,9 +8,9 @@ router.get("/sachat", authMiddleware, async (req, res) => {
   try {
     const { user } = req; // user object from authMiddleware (decoded JWT)
 
-    // Query user info from DB
+    // Query user info from DB (including username)
     const result = await pool.query(
-      "SELECT phone_number, phone_verified FROM users WHERE id = $1",
+      "SELECT username, phone_number, phone_verified FROM users WHERE id = $1",
       [user.id]
     );
 
@@ -23,10 +23,18 @@ router.get("/sachat", authMiddleware, async (req, res) => {
 
     if (userData.phone_verified === true) {
       // ✅ Phone is verified
-      return res.json({ success: true, userVerified: true });
+      return res.json({
+        success: true,
+        userVerified: true,
+        username: userData.username // Include username in the response
+      });
     } else {
       // 🔒 Phone is not verified
-      return res.json({ success: true, userVerified: false });
+      return res.json({
+        success: true,
+        userVerified: false,
+        username: userData.username // Include username even if phone is not verified
+      });
     }
 
   } catch (error) {
