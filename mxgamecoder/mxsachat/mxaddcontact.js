@@ -56,7 +56,6 @@ router.post("/sachat/add-contact", authMiddleware, async (req, res) => {
 });
 
 // GET SAVED CONTACTS
-// GET SAVED CONTACTS WITH PROFILE PICTURE
 router.get("/sachat/get-contacts", authMiddleware, async (req, res) => {
   const ownerId = req.user.id;
 
@@ -76,35 +75,7 @@ router.get("/sachat/get-contacts", authMiddleware, async (req, res) => {
       [ownerId]
     );
 
-    // Fetch profile pictures using each phone number
-    const enrichedContacts = await Promise.all(
-      contacts.rows.map(async (contact) => {
-        let profile_picture = null;
-        try {
-          const apiUrl = process.env.FALLBACK_API_URL || "https://msworld.onrender.com"; // fallback
-          const resp = await fetch(`${apiUrl}/mx/profile`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: contact.phone_number })
-          });
-
-          const profileData = await resp.json();
-          if (profileData.success && profileData.profile_picture) {
-            profile_picture = profileData.profile_picture;
-          }
-        } catch (err) {
-          console.error("Profile fetch failed:", err.message);
-        }
-
-        return {
-          name: contact.name,
-          sachat_id: contact.sachat_id,
-          profile_picture
-        };
-      })
-    );
-
-    res.json({ success: true, contacts: enrichedContacts });
+    res.json({ success: true, contacts: contacts.rows });
   } catch (err) {
     console.error("Get contacts error:", err.message);
     res.status(500).json({ error: "Something went wrong" });
