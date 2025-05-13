@@ -197,6 +197,30 @@ router.get("/profile", verifyToken, async (req, res) => {
   }
 });
 
+// Get another user's profile by phone number
+router.get("/profile/:phoneNumber", verifyToken, async (req, res) => {
+  try {
+    const { phoneNumber } = req.params;
+
+    const query = `
+      SELECT username, phone_number, profile_picture
+      FROM users
+      WHERE phone_number = $1
+    `;
+
+    const result = await mxdatabase.query(query, [phoneNumber]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.status(200).json(result.rows[0]);
+  } catch (error) {
+    console.error("Error fetching profile by phone number:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 // PUT /change-name
 router.put("/change-name", verifyToken, async (req, res) => {
   try {
