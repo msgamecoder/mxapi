@@ -56,6 +56,7 @@ router.post("/sachat/add-contact", authMiddleware, async (req, res) => {
 });
 
 // GET SAVED CONTACTS
+// GET SAVED CONTACTS
 router.get("/sachat/get-contacts", authMiddleware, async (req, res) => {
   const ownerId = req.user.id;
 
@@ -64,11 +65,11 @@ router.get("/sachat/get-contacts", authMiddleware, async (req, res) => {
       `
       SELECT 
         c.name, 
-        u.phone_number, 
-        s.sachat_id 
+        p.profile_picture_url,
+        u.id AS user_id
       FROM sachat_contacts c
       JOIN users u ON c.contact_id = u.id
-      LEFT JOIN sachat_users s ON s.user_id = u.id
+      LEFT JOIN profile_profile p ON p.user_id = u.id
       WHERE c.owner_id = $1
       ORDER BY c.name ASC
       `,
