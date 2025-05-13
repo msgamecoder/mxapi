@@ -39,6 +39,18 @@ router.post("/sachat/add-contact", authMiddleware, async (req, res) => {
 
     const contactId = contactQuery.rows[0].id || contactQuery.rows[0].user_id;
 
+    // Check if the contact is already in the user's contact list
+    const existingContact = await pool.query(
+      "SELECT * FROM sachat_contacts WHERE owner_id = $1 AND contact_id = $2",
+      [ownerId, contactId]
+    );
+
+    if (existingContact.rows.length > 0) {
+      return res.status(400).json({
+        error: "This contact is already added to your contact list."
+      });
+    }
+
     await pool.query(
       `
       INSERT INTO sachat_contacts (owner_id, contact_id, name)
