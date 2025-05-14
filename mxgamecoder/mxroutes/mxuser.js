@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const pool = require('../mxconfig/mxdatabase');
 require('dotenv').config();
 const router = express.Router();
+const authMiddleware = require("../mxmiddleware/authMiddleware");
 
 // ✅ Middleware: Verify JWT
 function authenticateToken(req, res, next) {
@@ -43,6 +44,10 @@ router.get("/user", authenticateToken, async (req, res) => {
         console.error("❌ Error fetching user:", error);
         res.status(500).json({ error: "Server error" });
     }
+});
+
+router.get("/user-info", authMiddleware, async (req, res) => {
+  res.json({ user: { id: req.user.id } });
 });
 
 module.exports = router;
