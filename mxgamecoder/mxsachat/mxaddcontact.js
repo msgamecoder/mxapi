@@ -67,6 +67,33 @@ router.post("/sachat/add-contact", authMiddleware, async (req, res) => {
   }
 });
 
+// GET SAVED CONTACTS
+router.get("/sachat/get-contacts", authMiddleware, async (req, res) => {
+  const ownerId = req.user.id;
+
+  try {
+    const contacts = await pool.query(
+      `
+      SELECT 
+        c.name, 
+        u.phone_number, 
+        s.sachat_id 
+      FROM sachat_contacts c
+      JOIN users u ON c.contact_id = u.id
+      LEFT JOIN sachat_users s ON s.user_id = u.id
+      WHERE c.owner_id = $1
+      ORDER BY c.name ASC
+      `,
+      [ownerId]
+    );
+
+    res.json({ success: true, contacts: contacts.rows });
+  } catch (err) {
+    console.error("Get contacts error:", err.message);
+    res.status(500).json({ error: "Something went wrong" });
+  }
+});
+
 // SEND MESSAGE (real-time enabled)
 router.post("/sachat/send-message", authMiddleware, async (req, res) => {
   const senderId = req.user.id;
@@ -121,6 +148,38 @@ router.post("/sachat/send-message", authMiddleware, async (req, res) => {
   }
 });
 
+// MARK AS SEEN
+router.post("/sachat/mark-seen", authMiddleware, async (req, res) => {
+  const { messageId } = req.body;
+  const userId = req.user.id;
+
+  try {
+    const result = await pool.query(
+      "UPDATE sachat_messages SET status = 'seen' WHERE id = $1 AND recipient_id = $2 RETURNING *",
+      [messageId, userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Message not found" });
+    }
+
+    // Optionally notify the sender of 'seen'
+    const io = req.app.get("io");
+    const senderSocketId = req.app.get("connectedUsers").get(result.rows[0].sender_id.toString());
+    if (senderSocketId) {
+      io.to(senderSocketId).emit("message_seen", {
+        messageId,
+        status: 'seen'
+      });
+    }
+
+    res.json({ success: true, message: "Message marked as seen" });
+  } catch (err) {
+    console.error("Mark as seen error:", err.message);
+    res.status(500).json({ error: "Something went wrong" });
+  }
+});
+
 // GET MESSAGE HISTORY WITH A CONTACT
 router.get("/sachat/messages", authMiddleware, async (req, res) => {
   const userId = req.user.id;
@@ -141,7 +200,7 @@ router.get("/sachat/messages", authMiddleware, async (req, res) => {
     const contactId = contactQuery.rows[0].id;
 
     const messages = await pool.query(
-      `SELECT sender_id, recipient_id, message_text, timestamp, status
+      `SELECT sender_id, recipient_id, message_text, timestamp
        FROM sachat_messages
        WHERE (sender_id = $1 AND recipient_id = $2)
           OR (sender_id = $2 AND recipient_id = $1)
@@ -155,5 +214,6 @@ router.get("/sachat/messages", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Something went wrong fetching messages" });
   }
 });
+
 
 module.exports = router;
