@@ -94,12 +94,10 @@ router.get("/sachat/get-contacts", authMiddleware, async (req, res) => {
   }
 });
 
-
-// SEND MESSAGE (Real-time emit)
+// SEND MESSAGE (real-time enabled)
 router.post("/sachat/send-message", authMiddleware, async (req, res) => {
   const senderId = req.user.id;
   const { to, message } = req.body;
-  const io = req.app.get('io');
 
   if (!to || !message)
     return res.status(400).json({ error: "Missing recipient or message text" });
@@ -116,27 +114,29 @@ router.post("/sachat/send-message", authMiddleware, async (req, res) => {
 
     const recipientId = recipientQuery.rows[0].id;
 
-    await pool.query(
+    const result = await pool.query(
       `INSERT INTO sachat_messages (sender_id, recipient_id, message_text, timestamp)
-       VALUES ($1, $2, $3, NOW())`,
+       VALUES ($1, $2, $3, NOW())
+       RETURNING *`,
       [senderId, recipientId, message]
     );
 
-    // Emit to recipient via socket
-    const recipientSocketId = [...io.sockets.sockets.keys()].find(
-      (id) => io.sockets.sockets.get(id).userId === recipientId
-    );
+    const savedMessage = result.rows[0];
 
+    // Send real-time message using Socket.IO
+    const io = req.app.get("io");
+    const connectedUsers = req.app.get("connectedUsers");
+
+    const recipientSocketId = connectedUsers.get(recipientId.toString());
     if (recipientSocketId) {
-      io.to(recipientSocketId).emit('receive_message', {
+      io.to(recipientSocketId).emit("receive_message", {
         from: senderId,
         text: message,
-        time: new Date()
+        timestamp: savedMessage.timestamp || new Date().toISOString(),
       });
     }
 
     res.json({ success: true, message: "📤 Message sent" });
-
   } catch (err) {
     console.error("Send message error:", err.message);
     res.status(500).json({ error: "Something went wrong sending the message" });
@@ -177,5 +177,6 @@ router.get("/sachat/messages", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Something went wrong fetching messages" });
   }
 });
+
 
 module.exports = router;
