@@ -121,7 +121,7 @@ const mxaddcontact = require("./mxgamecoder/mxsachat/mxaddcontact");
 app.use("/ms", mxaddcontact);
 
 // Start Server
-app.listen(PORT, async () => {
+server.listen(PORT, async () => {
     try {
         await pool.connect();
         console.log(`🚀 Server running on port ${PORT}`);
@@ -130,3 +130,4 @@ app.listen(PORT, async () => {
         console.error('❌ PostgreSQL Connection Failed:', error);
     }
 });
+
