@@ -67,40 +67,12 @@ router.post("/sachat/add-contact", authMiddleware, async (req, res) => {
   }
 });
 
-// GET SAVED CONTACTS
-router.get("/sachat/get-contacts", authMiddleware, async (req, res) => {
-  const ownerId = req.user.id;
-
-  try {
-    const contacts = await pool.query(
-      `
-      SELECT 
-        c.name, 
-        u.phone_number, 
-        s.sachat_id 
-      FROM sachat_contacts c
-      JOIN users u ON c.contact_id = u.id
-      LEFT JOIN sachat_users s ON s.user_id = u.id
-      WHERE c.owner_id = $1
-      ORDER BY c.name ASC
-      `,
-      [ownerId]
-    );
-
-    res.json({ success: true, contacts: contacts.rows });
-  } catch (err) {
-    console.error("Get contacts error:", err.message);
-    res.status(500).json({ error: "Something went wrong" });
-  }
-});
-
 // SEND MESSAGE (real-time enabled)
 router.post("/sachat/send-message", authMiddleware, async (req, res) => {
   const senderId = req.user.id;
   const { to, message } = req.body;
 
-  if (!to || !message)
-    return res.status(400).json({ error: "Missing recipient or message text" });
+  if (!to || !message) return res.status(400).json({ error: "Missing recipient or message text" });
 
   try {
     const recipientQuery = await pool.query(
@@ -115,8 +87,8 @@ router.post("/sachat/send-message", authMiddleware, async (req, res) => {
     const recipientId = recipientQuery.rows[0].id;
 
     const result = await pool.query(
-      `INSERT INTO sachat_messages (sender_id, recipient_id, message_text, timestamp)
-       VALUES ($1, $2, $3, NOW())
+      `INSERT INTO sachat_messages (sender_id, recipient_id, message_text, timestamp, status)
+       VALUES ($1, $2, $3, NOW(), 'pending') -- Initially set status to 'pending'
        RETURNING *`,
       [senderId, recipientId, message]
     );
@@ -133,10 +105,16 @@ router.post("/sachat/send-message", authMiddleware, async (req, res) => {
         from: senderId,
         text: message,
         timestamp: savedMessage.timestamp || new Date().toISOString(),
+        status: 'delivered' // Change to delivered status
       });
+      // Update message status to 'delivered' in DB
+      await pool.query(
+        "UPDATE sachat_messages SET status = 'delivered' WHERE id = $1",
+        [savedMessage.id]
+      );
     }
 
-    res.json({ success: true, message: "📤 Message sent" });
+    res.json({ success: true, message: "📤 Message sent", messageData: savedMessage });
   } catch (err) {
     console.error("Send message error:", err.message);
     res.status(500).json({ error: "Something went wrong sending the message" });
@@ -163,7 +141,7 @@ router.get("/sachat/messages", authMiddleware, async (req, res) => {
     const contactId = contactQuery.rows[0].id;
 
     const messages = await pool.query(
-      `SELECT sender_id, recipient_id, message_text, timestamp
+      `SELECT sender_id, recipient_id, message_text, timestamp, status
        FROM sachat_messages
        WHERE (sender_id = $1 AND recipient_id = $2)
           OR (sender_id = $2 AND recipient_id = $1)
@@ -177,6 +155,5 @@ router.get("/sachat/messages", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Something went wrong fetching messages" });
   }
 });
-
 
 module.exports = router;
