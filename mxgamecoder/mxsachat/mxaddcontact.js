@@ -199,14 +199,14 @@ router.get("/sachat/messages", authMiddleware, async (req, res) => {
 
     const contactId = contactQuery.rows[0].id;
 
-    const messages = await pool.query(
-      `SELECT sender_id, recipient_id, message_text, timestamp
-       FROM sachat_messages
-       WHERE (sender_id = $1 AND recipient_id = $2)
-          OR (sender_id = $2 AND recipient_id = $1)
-       ORDER BY timestamp ASC`,
-      [userId, contactId]
-    );
+const messages = await pool.query(
+  `SELECT id, sender_id, recipient_id, message_text, timestamp, status
+   FROM sachat_messages
+   WHERE (sender_id = $1 AND recipient_id = $2)
+      OR (sender_id = $2 AND recipient_id = $1)
+   ORDER BY timestamp ASC`,
+  [userId, contactId]
+);
 
     res.json({ success: true, messages: messages.rows });
   } catch (err) {
