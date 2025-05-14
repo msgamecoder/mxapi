@@ -95,10 +95,11 @@ router.get("/sachat/get-contacts", authMiddleware, async (req, res) => {
 });
 
 
-// SEND MESSAGE
+// SEND MESSAGE (Real-time emit)
 router.post("/sachat/send-message", authMiddleware, async (req, res) => {
   const senderId = req.user.id;
   const { to, message } = req.body;
+  const io = req.app.get('io');
 
   if (!to || !message)
     return res.status(400).json({ error: "Missing recipient or message text" });
@@ -121,7 +122,21 @@ router.post("/sachat/send-message", authMiddleware, async (req, res) => {
       [senderId, recipientId, message]
     );
 
+    // Emit to recipient via socket
+    const recipientSocketId = [...io.sockets.sockets.keys()].find(
+      (id) => io.sockets.sockets.get(id).userId === recipientId
+    );
+
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit('receive_message', {
+        from: senderId,
+        text: message,
+        time: new Date()
+      });
+    }
+
     res.json({ success: true, message: "📤 Message sent" });
+
   } catch (err) {
     console.error("Send message error:", err.message);
     res.status(500).json({ error: "Something went wrong sending the message" });
