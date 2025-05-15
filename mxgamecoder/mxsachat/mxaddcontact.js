@@ -183,21 +183,30 @@ router.post("/sachat/mark-seen", authMiddleware, async (req, res) => {
 // GET MESSAGE HISTORY WITH A CONTACT
 router.get("/sachat/messages", authMiddleware, async (req, res) => {
   const userId = req.user.id;
-  const contactId = parseInt(req.query.with); // Now expecting contactId (as number)
+  const { with: contactPhone } = req.query;
 
-  if (!contactId || isNaN(contactId)) {
-    return res.status(400).json({ error: "Valid contact ID is required" });
-  }
+  if (!contactPhone) return res.status(400).json({ error: "Contact phone is required" });
 
   try {
-    const messages = await pool.query(
-      `SELECT id, sender_id, recipient_id, message_text, timestamp, status
-       FROM sachat_messages
-       WHERE (sender_id = $1 AND recipient_id = $2)
-          OR (sender_id = $2 AND recipient_id = $1)
-       ORDER BY timestamp ASC`,
-      [userId, contactId]
+    const contactQuery = await pool.query(
+      "SELECT id FROM users WHERE phone_number = $1",
+      [contactPhone]
     );
+
+    if (contactQuery.rows.length === 0) {
+      return res.status(404).json({ error: "Contact not found" });
+    }
+
+    const contactId = contactQuery.rows[0].id;
+
+const messages = await pool.query(
+  `SELECT id, sender_id, recipient_id, message_text, timestamp, status
+   FROM sachat_messages
+   WHERE (sender_id = $1 AND recipient_id = $2)
+      OR (sender_id = $2 AND recipient_id = $1)
+   ORDER BY timestamp ASC`,
+  [userId, contactId]
+);
 
     res.json({ success: true, messages: messages.rows });
   } catch (err) {
@@ -205,7 +214,6 @@ router.get("/sachat/messages", authMiddleware, async (req, res) => {
     res.status(500).json({ error: "Something went wrong fetching messages" });
   }
 });
-
 
 router.get("/sachat/chat-contacts", authMiddleware, async (req, res) => {
   const userId = req.user.id;
@@ -234,7 +242,7 @@ last_msgs AS (
 )
 SELECT 
   ac.contact_id,
-  COALESCE(c.name, u.phone_number) AS name,
+  COALESCE(c.name, u.full_name) AS name,
   u.profile_picture AS img,
   lm.message_text AS "lastMessage",
   lm.timestamp AS "lastMessageTime"
