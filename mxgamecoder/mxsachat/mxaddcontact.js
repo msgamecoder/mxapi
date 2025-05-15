@@ -220,59 +220,39 @@ router.get("/sachat/chat-contacts", authMiddleware, async (req, res) => {
 
   try {
     const query = `
-    WITH all_chats AS (
-      SELECT 
-        CASE 
-          WHEN sender_id = $1 THEN recipient_id
-          ELSE sender_id
-        END AS contact_id,
-        MAX(timestamp) AS last_message_time
-      FROM sachat_messages
-      WHERE sender_id = $1 OR recipient_id = $1
-      GROUP BY contact_id
-    ),
-    last_msgs AS (
-      SELECT m.*
-      FROM sachat_messages m
-      INNER JOIN all_chats ac ON (
-        (m.sender_id = $1 AND m.recipient_id = ac.contact_id)
-        OR (m.sender_id = ac.contact_id AND m.recipient_id = $1)
-      )
-      AND m.timestamp = ac.last_message_time
-    ),
-    msg_counts AS (
-      SELECT 
-        CASE 
-          WHEN sender_id = $1 THEN recipient_id
-          ELSE sender_id
-        END AS contact_id,
-        COUNT(*) AS message_count
-      FROM sachat_messages
-      WHERE sender_id = $1 OR recipient_id = $1
-      GROUP BY contact_id
-    ),
-    names AS (
-      SELECT 
-        c.contact_id,
-        c.name
-      FROM sachat_contacts c
-      WHERE c.owner_id = $1
-    )
-    SELECT 
-      ac.contact_id,
-      COALESCE(n.name, u.full_name) AS name,
-      u.profile_picture AS img,
-      lm.message_text AS "lastMessage",
-      lm.timestamp AS "lastMessageTime",
-      msg_counts.message_count
-    FROM all_chats ac
-    JOIN users u ON u.id = ac.contact_id
-    LEFT JOIN names n ON n.contact_id = ac.contact_id
-    JOIN last_msgs lm ON 
-      (lm.sender_id = ac.contact_id AND lm.recipient_id = $1)
-      OR (lm.sender_id = $1 AND lm.recipient_id = ac.contact_id)
-    JOIN msg_counts ON msg_counts.contact_id = ac.contact_id
-    ORDER BY lm.timestamp DESC;
+  WITH all_chats AS (
+  SELECT 
+    CASE 
+      WHEN sender_id = $1 THEN recipient_id
+      ELSE sender_id
+    END AS contact_id,
+    MAX(timestamp) AS last_message_time
+  FROM sachat_messages
+  WHERE sender_id = $1 OR recipient_id = $1
+  GROUP BY contact_id
+),
+last_msgs AS (
+  SELECT m.*
+  FROM sachat_messages m
+  INNER JOIN all_chats ac ON (
+    (m.sender_id = $1 AND m.recipient_id = ac.contact_id)
+    OR (m.sender_id = ac.contact_id AND m.recipient_id = $1)
+  )
+  AND m.timestamp = ac.last_message_time
+)
+SELECT 
+  ac.contact_id,
+  COALESCE(c.name, u.full_name) AS name,
+  u.profile_picture AS img,
+  lm.message_text AS "lastMessage",
+  lm.timestamp AS "lastMessageTime"
+FROM all_chats ac
+JOIN users u ON u.id = ac.contact_id
+LEFT JOIN sachat_contacts c ON c.owner_id = $1 AND c.contact_id = ac.contact_id
+JOIN last_msgs lm ON 
+  (lm.sender_id = ac.contact_id AND lm.recipient_id = $1)
+  OR (lm.sender_id = $1 AND lm.recipient_id = ac.contact_id)
+ORDER BY lm.timestamp DESC;
     `;
 
     const { rows } = await pool.query(query, [userId]);
