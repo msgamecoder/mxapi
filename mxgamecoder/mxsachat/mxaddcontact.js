@@ -1,4 +1,4 @@
-const express = require("express");
+ const express = require("express");
 const router = express.Router();
 const pool = require("../mxconfig/mxdatabase");
 const authMiddleware = require("../mxmiddleware/authMiddleware");
@@ -244,9 +244,10 @@ SELECT
   ac.contact_id,
   COALESCE(c.name, u.full_name) AS name,
   u.profile_picture AS img,
-   u.phone_number AS phone,
+  u.phone_number AS phone,
   lm.message_text AS "lastMessage",
-  lm.timestamp AS "lastMessageTime"
+  lm.timestamp AS "lastMessageTime",
+  lm.sender_id AS "lastSenderId"
 FROM all_chats ac
 JOIN users u ON u.id = ac.contact_id
 LEFT JOIN sachat_contacts c ON c.owner_id = $1 AND c.contact_id = ac.contact_id
