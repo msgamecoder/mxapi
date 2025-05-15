@@ -220,7 +220,7 @@ router.get("/sachat/chat-contacts", authMiddleware, async (req, res) => {
 
   try {
     const query = `
-  WITH all_chats AS (
+ WITH all_chats AS (
   SELECT 
     CASE 
       WHEN sender_id = $1 THEN recipient_id
@@ -251,9 +251,7 @@ SELECT
 FROM all_chats ac
 JOIN users u ON u.id = ac.contact_id
 LEFT JOIN sachat_contacts c ON c.owner_id = $1 AND c.contact_id = ac.contact_id
-JOIN last_msgs lm ON 
-  (lm.sender_id = ac.contact_id AND lm.recipient_id = $1)
-  OR (lm.sender_id = $1 AND lm.recipient_id = ac.contact_id)
+JOIN last_msgs lm ON lm.timestamp = ac.last_message_time
 ORDER BY lm.timestamp DESC;
     `;
 
