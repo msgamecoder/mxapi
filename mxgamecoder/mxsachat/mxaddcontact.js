@@ -183,30 +183,21 @@ router.post("/sachat/mark-seen", authMiddleware, async (req, res) => {
 // GET MESSAGE HISTORY WITH A CONTACT
 router.get("/sachat/messages", authMiddleware, async (req, res) => {
   const userId = req.user.id;
-  const { with: contactPhone } = req.query;
+  const contactId = parseInt(req.query.with); // Now expecting contactId (as number)
 
-  if (!contactPhone) return res.status(400).json({ error: "Contact phone is required" });
+  if (!contactId || isNaN(contactId)) {
+    return res.status(400).json({ error: "Valid contact ID is required" });
+  }
 
   try {
-    const contactQuery = await pool.query(
-      "SELECT id FROM users WHERE phone_number = $1",
-      [contactPhone]
+    const messages = await pool.query(
+      `SELECT id, sender_id, recipient_id, message_text, timestamp, status
+       FROM sachat_messages
+       WHERE (sender_id = $1 AND recipient_id = $2)
+          OR (sender_id = $2 AND recipient_id = $1)
+       ORDER BY timestamp ASC`,
+      [userId, contactId]
     );
-
-    if (contactQuery.rows.length === 0) {
-      return res.status(404).json({ error: "Contact not found" });
-    }
-
-    const contactId = contactQuery.rows[0].id;
-
-const messages = await pool.query(
-  `SELECT id, sender_id, recipient_id, message_text, timestamp, status
-   FROM sachat_messages
-   WHERE (sender_id = $1 AND recipient_id = $2)
-      OR (sender_id = $2 AND recipient_id = $1)
-   ORDER BY timestamp ASC`,
-  [userId, contactId]
-);
 
     res.json({ success: true, messages: messages.rows });
   } catch (err) {
@@ -214,6 +205,7 @@ const messages = await pool.query(
     res.status(500).json({ error: "Something went wrong fetching messages" });
   }
 });
+
 
 router.get("/sachat/chat-contacts", authMiddleware, async (req, res) => {
   const userId = req.user.id;
