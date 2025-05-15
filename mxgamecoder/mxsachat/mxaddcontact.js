@@ -150,33 +150,46 @@ router.post("/sachat/send-message", authMiddleware, async (req, res) => {
 
 // MARK AS SEEN
 router.post("/sachat/mark-seen", authMiddleware, async (req, res) => {
-  const { messageId } = req.body;
+  let messageIds = req.body.messageId;
+  if (!messageIds) return res.status(400).json({ error: "Missing messageId" });
+
+  // Normalize to array if single id passed
+  if (!Array.isArray(messageIds)) {
+    messageIds = [messageIds];
+  }
+
   const userId = req.user.id;
+  const io = req.app.get("io");
+  const connectedUsers = req.app.get("connectedUsers");
 
   try {
     const result = await pool.query(
-      "UPDATE sachat_messages SET status = 'seen' WHERE id = $1 AND recipient_id = $2 RETURNING *",
-      [messageId, userId]
+      `UPDATE sachat_messages 
+       SET status = 'seen' 
+       WHERE id = ANY($1) AND recipient_id = $2
+       RETURNING *`,
+      [messageIds, userId]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Message not found" });
+      return res.status(404).json({ error: "No messages updated or not authorized" });
     }
 
-    // Optionally notify the sender of 'seen'
-    const io = req.app.get("io");
-    const senderSocketId = req.app.get("connectedUsers").get(result.rows[0].sender_id.toString());
-    if (senderSocketId) {
-      io.to(senderSocketId).emit("message_seen", {
-        messageId,
-        status: 'seen'
-      });
-    }
+    // Emit socket event to notify senders that their messages are seen
+    result.rows.forEach(row => {
+      const senderSocketId = connectedUsers.get(row.sender_id.toString());
+      if (senderSocketId) {
+        io.to(senderSocketId).emit("message_seen", {
+          messageId: row.id,
+          status: "seen",
+        });
+      }
+    });
 
-    res.json({ success: true, message: "Message marked as seen" });
+    res.json({ success: true, updatedCount: result.rows.length });
   } catch (err) {
     console.error("Mark as seen error:", err.message);
-    res.status(500).json({ error: "Something went wrong" });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
