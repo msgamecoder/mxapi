@@ -220,39 +220,42 @@ router.get("/sachat/chat-contacts", authMiddleware, async (req, res) => {
 
   try {
     const query = `
- WITH all_chats AS (
-  SELECT 
+WITH last_msgs AS (
+  SELECT DISTINCT ON (
     CASE 
       WHEN sender_id = $1 THEN recipient_id
       ELSE sender_id
-    END AS contact_id,
-    MAX(timestamp) AS last_message_time
+    END
+  ) 
+    id,
+    message_text,
+    timestamp,
+    sender_id,
+    recipient_id,
+    CASE 
+      WHEN sender_id = $1 THEN recipient_id
+      ELSE sender_id
+    END AS contact_id
   FROM sachat_messages
   WHERE sender_id = $1 OR recipient_id = $1
-  GROUP BY contact_id
-),
-last_msgs AS (
-  SELECT m.*
-  FROM sachat_messages m
-  INNER JOIN all_chats ac ON (
-    (m.sender_id = $1 AND m.recipient_id = ac.contact_id)
-    OR (m.sender_id = ac.contact_id AND m.recipient_id = $1)
-  )
-  AND m.timestamp = ac.last_message_time
+  ORDER BY 
+    contact_id,
+    timestamp DESC
 )
 SELECT 
-  ac.contact_id,
+  lm.contact_id,
   COALESCE(c.name, u.full_name) AS name,
   u.profile_picture AS img,
   u.phone_number AS phone,
   lm.message_text AS "lastMessage",
   lm.timestamp AS "lastMessageTime",
   lm.sender_id AS "lastSenderId"
-FROM all_chats ac
-JOIN users u ON u.id = ac.contact_id
-LEFT JOIN sachat_contacts c ON c.owner_id = $1 AND c.contact_id = ac.contact_id
-JOIN last_msgs lm ON lm.timestamp = ac.last_message_time
+FROM last_msgs lm
+JOIN users u ON u.id = lm.contact_id
+LEFT JOIN sachat_contacts c 
+  ON c.owner_id = $1 AND c.contact_id = lm.contact_id
 ORDER BY lm.timestamp DESC;
+
     `;
 
     const { rows } = await pool.query(query, [userId]);
