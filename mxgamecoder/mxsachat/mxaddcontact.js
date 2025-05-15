@@ -242,7 +242,7 @@ last_msgs AS (
 )
 SELECT 
   ac.contact_id,
-  COALESCE(c.name, u.phone_number) AS name,
+  COALESCE(c.name, u.full_name) AS name,
   u.profile_picture AS img,
   lm.message_text AS "lastMessage",
   lm.timestamp AS "lastMessageTime"
