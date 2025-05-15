@@ -244,6 +244,7 @@ SELECT
   ac.contact_id,
   COALESCE(c.name, u.full_name) AS name,
   u.profile_picture AS img,
+   u.phone_number AS phone,
   lm.message_text AS "lastMessage",
   lm.timestamp AS "lastMessageTime"
 FROM all_chats ac
