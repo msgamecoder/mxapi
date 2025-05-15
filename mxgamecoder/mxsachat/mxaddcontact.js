@@ -215,5 +215,57 @@ const messages = await pool.query(
   }
 });
 
+// GET CHAT CONTACTS WITH LAST MESSAGE, IMAGE, AND MESSAGE COUNT
+router.get("/sachat/chat-contacts", authMiddleware, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const query = `
+      SELECT 
+        u.id AS contact_id,
+        u.name,
+        u.profile_picture AS img,
+        lm.message_text AS "lastMessage",
+        lm.timestamp AS "lastMessageTime",
+        msg_counts.message_count
+      FROM users u
+      JOIN (
+        SELECT
+          CASE
+            WHEN sender_id = $1 THEN recipient_id
+            ELSE sender_id
+          END AS contact_id,
+          MAX(timestamp) AS last_message_time
+        FROM sachat_messages
+        WHERE sender_id = $1 OR recipient_id = $1
+        GROUP BY contact_id
+      ) last_msg ON u.id = last_msg.contact_id
+      JOIN sachat_messages lm ON 
+        ((lm.sender_id = $1 AND lm.recipient_id = u.id)
+         OR (lm.sender_id = u.id AND lm.recipient_id = $1))
+        AND lm.timestamp = last_msg.last_message_time
+      JOIN (
+        SELECT 
+          CASE
+            WHEN sender_id = $1 THEN recipient_id
+            ELSE sender_id
+          END AS contact_id,
+          COUNT(*) AS message_count
+        FROM sachat_messages
+        WHERE sender_id = $1 OR recipient_id = $1
+        GROUP BY contact_id
+      ) msg_counts ON u.id = msg_counts.contact_id
+      ORDER BY lm.timestamp DESC
+    `;
+
+    const { rows } = await pool.query(query, [userId]);
+
+    res.json({ success: true, contacts: rows });
+  } catch (err) {
+    console.error("Get chat contacts error:", err.message);
+    res.status(500).json({ error: "Something went wrong fetching chat contacts" });
+  }
+});
+
 
 module.exports = router;
