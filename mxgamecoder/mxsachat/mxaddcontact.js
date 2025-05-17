@@ -113,12 +113,12 @@ router.post("/sachat/send-message", authMiddleware, async (req, res) => {
 
     const recipientId = recipientQuery.rows[0].id;
 
-    const result = await pool.query(
-      `INSERT INTO sachat_messages (sender_id, recipient_id, message_text, timestamp, status)
-       VALUES ($1, $2, $3, NOW(), 'pending') -- Initially set status to 'pending'
-       RETURNING *`,
-      [senderId, recipientId, message]
-    );
+   const result = await pool.query(
+     `INSERT INTO sachat_messages (sender_id, recipient_id, message_text, timestamp, status)
+      VALUES ($1, $2, $3, NOW(), 'delivered') -- Always default to delivered
+      RETURNING *`,
+     [senderId, recipientId, message]
+   );
 
     const savedMessage = result.rows[0];
 
@@ -126,14 +126,21 @@ router.post("/sachat/send-message", authMiddleware, async (req, res) => {
     const io = req.app.get("io");
     const connectedUsers = req.app.get("connectedUsers");
 
-    const recipientSocketId = connectedUsers.get(recipientId.toString());
-    if (recipientSocketId) {
-      io.to(recipientSocketId).emit("receive_message", {
-        from: senderId,
-        text: message,
-        timestamp: savedMessage.timestamp || new Date().toISOString(),
-        status: 'delivered' // Change to delivered status
-      });
+    // Fetch sender's phone number
+  const senderPhoneRes = await pool.query("SELECT phone_number FROM users WHERE id = $1", [senderId]);
+  const senderPhone = senderPhoneRes.rows[0].phone_number;
+
+// Send real-time message using Socket.IO
+const recipientData = connectedUsers.get(recipientId.toString());
+if (recipientData && recipientData.socketId) {
+  io.to(recipientData.socketId).emit("receive_message", {
+    from: senderId,
+    fromPhone: senderPhone, // 👈 ADD THIS
+    text: message,
+    timestamp: savedMessage.timestamp || new Date().toISOString(),
+    status: 'delivered',
+    id: savedMessage.id
+  });
       // Update message status to 'delivered' in DB
       await pool.query(
         "UPDATE sachat_messages SET status = 'delivered' WHERE id = $1",
@@ -150,46 +157,44 @@ router.post("/sachat/send-message", authMiddleware, async (req, res) => {
 
 // MARK AS SEEN
 router.post("/sachat/mark-seen", authMiddleware, async (req, res) => {
-  let messageIds = req.body.messageId;
-  if (!messageIds) return res.status(400).json({ error: "Missing messageId" });
+  const userId = req.user.id;
+  const { messageId } = req.body;
 
-  // Normalize to array if single id passed
-  if (!Array.isArray(messageIds)) {
-    messageIds = [messageIds];
+  if (!messageId || !Array.isArray(messageId) || messageId.length === 0) {
+    return res.status(400).json({ error: "Message IDs required" });
   }
 
-  const userId = req.user.id;
-  const io = req.app.get("io");
-  const connectedUsers = req.app.get("connectedUsers");
-
   try {
-    const result = await pool.query(
-      `UPDATE sachat_messages 
-       SET status = 'seen' 
-       WHERE id = ANY($1) AND recipient_id = $2
-       RETURNING *`,
-      [messageIds, userId]
+    // Update message statuses in DB
+    await pool.query(
+      `UPDATE sachat_messages SET status = 'seen' WHERE id = ANY($1::int[]) AND recipient_id = $2`,
+      [messageId, userId]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "No messages updated or not authorized" });
-    }
+    // 🔌 Get sender info and emit `message_seen`
+    const io = req.app.get("io");
+    const connectedUsers = req.app.get("connectedUsers");
 
-    // Emit socket event to notify senders that their messages are seen
-    result.rows.forEach(row => {
-      const senderSocketId = connectedUsers.get(row.sender_id.toString());
-      if (senderSocketId) {
-        io.to(senderSocketId).emit("message_seen", {
-          messageId: row.id,
+    const result = await pool.query(
+      `SELECT id, sender_id FROM sachat_messages WHERE id = ANY($1::int[])`,
+      [messageId]
+    );
+
+    for (let msg of result.rows) {
+      const senderData = connectedUsers.get(msg.sender_id.toString());
+      if (senderData) {
+        io.to(senderData.socketId).emit("message_seen", {
+          messageId: msg.id,
           status: "seen",
+          seenAt: new Date().toISOString()
         });
       }
-    });
+    }
 
-    res.json({ success: true, updatedCount: result.rows.length });
+    res.json({ success: true });
   } catch (err) {
-    console.error("Mark as seen error:", err.message);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Error marking messages as seen:", err.message);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
