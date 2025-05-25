@@ -73,7 +73,7 @@ router.post("/sachat/add-contact", authMiddleware, async (req, res) => {
   }
 });
 
-// GET CONTACTS — fallback to full_name, not username + include bio
+// GET CONTACTS — fallback to full_name, username + include bio
 router.get("/sachat/get-contacts", authMiddleware, async (req, res) => {
   const ownerId = req.user.id;
 
@@ -84,15 +84,20 @@ router.get("/sachat/get-contacts", authMiddleware, async (req, res) => {
         COALESCE(c.name, u.full_name) AS name, 
         u.phone_number, 
         s.sachat_id,
-        COALESCE(NULLIF(TRIM(u.bio), ''), '📭 No bio yet. Say hi and break the ice!') AS bio
+        u.profile_picture,
+        u.username,
+        CASE 
+          WHEN u.id = $1 THEN '🪞 It you!'
+          ELSE COALESCE(NULLIF(TRIM(u.bio), ''), '📭 No bio yet. Say hi and break the ice!')
+        END AS bio
       FROM sachat_contacts c
       JOIN users u ON c.contact_id = u.id
       LEFT JOIN sachat_users s ON s.user_id = u.id
       WHERE c.owner_id = $1
       ORDER BY name ASC
       `,
-      [ownerId]
-    );
+  [ownerId]
+);
 
     res.json({ success: true, contacts: contacts.rows });
   } catch (err) {
