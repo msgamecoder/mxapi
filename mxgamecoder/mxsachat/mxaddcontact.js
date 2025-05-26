@@ -20,13 +20,14 @@ router.post("/sachat/add-contact", authMiddleware, async (req, res) => {
         [phone]
       );
     } else {
-      contactQuery = await pool.query(
-        `SELECT u.id, u.full_name 
-         FROM sachat_users s
-         JOIN users u ON s.user_id = u.id
-         WHERE s.sachat_id = $1`,
-        [sachat_id]
-      );
+const cleanedId = sachat_id ? sachat_id.trim() : null;
+contactQuery = await pool.query(
+  `SELECT u.id, u.full_name 
+   FROM sachat_users s
+   JOIN users u ON s.user_id = u.id
+   WHERE LOWER(s.sachat_id) = LOWER($1)`,
+  [cleanedId]
+);
     }
 
     if (contactQuery.rows.length === 0) {
