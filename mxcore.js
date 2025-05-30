@@ -61,8 +61,8 @@ app.use('/ms', require('./mxgamecoder/mxsachat/mxgenerateid'));
 app.use('/ms', require('./mxgamecoder/mxsachat/mxaddcontact'));
 app.use('/ms', require('./mxgamecoder/mxsachat/mxsachat-voice'));
 // Socket.IO chat logic
-const messageHandler = require('./mxgamecoder/mxsachat/mxmessage');
-messageHandler(io); // ✅ pass app as well
+const socketHandler = require('./mxgamecoder/mxsachat/mxsocket');
+socketHandler(io); // ✅ pass app as well
 
 // Start server with DB connection
 server.listen(PORT, async () => {
