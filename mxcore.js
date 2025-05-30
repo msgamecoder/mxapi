@@ -27,97 +27,6 @@ app.use(cors({
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// Track online users
-const connectedUsers = new Map();
-app.set("connectedUsers", connectedUsers);
-app.set("io", io);
-
-// Socket.IO logic
-io.on("connection", (socket) => {
-  console.log("🔌 New user connected:", socket.id);
-
-socket.on("register", async (userId) => {
-  if (!userId) return;
-
-  try {
-    const result = await pool.query("SELECT phone_number FROM users WHERE id = $1", [userId]);
-    const phone = result.rows[0]?.phone_number;
-    if (phone) {
-      connectedUsers.set(userId.toString(), { socketId: socket.id, phone });
-      console.log(`🟢 User ${userId} (${phone}) registered with socket ${socket.id}`);
-
-      // Broadcast to all that this user is online
-      io.emit("user_online_status", { phone, isOnline: true });
-    }
-  } catch (err) {
-    console.error("Register error:", err);
-  }
-});
-
-socket.on("check_online_status", (phone) => {
-  if (!phone) return;
-
-  let isOnline = false;
-  for (let { phone: storedPhone } of connectedUsers.values()) {
-    if (storedPhone === phone) {
-      isOnline = true;
-      break;
-    }
-  }
-
-  socket.emit("user_online_status", { phone, isOnline });
-});
-
-socket.on("disconnect", () => {
-  for (let [userId, userInfo] of connectedUsers.entries()) {
-    if (userInfo.socketId === socket.id) {
-      connectedUsers.delete(userId);
-      console.log(`🔴 User ${userId} (${userInfo.phone}) disconnected`);
-
-      // Broadcast offline status
-      io.emit("user_online_status", { phone: userInfo.phone, isOnline: false });
-
-      break;
-    }
-  }
-});
-
-socket.on("reconnect", (attempt) => {
-  console.log(`🔄 Reconnected after ${attempt} attempts`);
-  socket.emit("register", userId); // re-register after reconnect
-  socket.emit("check_online_status", target.phone);
-});
-
-// 🔤 Typing indicators
-socket.on("typing", ({ fromId, toPhone }) => {
-  if (!fromId || !toPhone) return;
-
-  const fromUser = connectedUsers.get(fromId.toString());
-  if (!fromUser) return;
-
-  for (let [id, { phone, socketId }] of connectedUsers.entries()) {
-    if (phone === toPhone) {
-      io.to(socketId).emit("show_typing", { phone: fromUser.phone });
-      break;
-    }
-  }
-});
-
-socket.on("stop_typing", ({ fromId, toPhone }) => {
-  if (!fromId || !toPhone) return;
-
-  const fromUser = connectedUsers.get(fromId.toString());
-  if (!fromUser) return;
-
-  for (let [id, { phone, socketId }] of connectedUsers.entries()) {
-    if (phone === toPhone) {
-      io.to(socketId).emit("hide_typing", { phone: fromUser.phone });
-      break;
-    }
-  }
-});
-
-});
 
 // Basic health check route
 app.get('/', (req, res) => res.send('🔥 MXWorld API is running!'));
@@ -147,9 +56,13 @@ app.use('/mx', require('./mxgamecoder/mxutils/updateNotify'));
 
 // SaChat Real-Time System
 app.use('/ms', require('./mxgamecoder/mxsachat/mxjoin'));
+app.use('/ms', require('./mxgamecoder/mxsachat/mxchatroom'));
 app.use('/ms', require('./mxgamecoder/mxsachat/mxgenerateid'));
 app.use('/ms', require('./mxgamecoder/mxsachat/mxaddcontact'));
-app.use('/ms', require('./mxgamecoder/mxsachat/mxsachat-voice'));
+app.use('/ms', require('./mxgamecoder/mxsachatu/mxsachat-voice'));
+// Socket.IO chat logic
+const messageHandler = require('./mxgamecoder/mxsachat/mxmessage');
+messageHandler(io); // ✅ pass app as well
 
 // Start server with DB connection
 server.listen(PORT, async () => {
