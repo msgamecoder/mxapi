@@ -1,6 +1,6 @@
-// mxsocket.js
 const { saveMessage, loadMessages } = require("./mxsocketMessages");
 const { handleTyping, handleStopTyping } = require("./mxsocketTyping");
+const handleStatus = require("./mxsocketStatus"); // 👈 Add this
 
 function socketHandler(io) {
   io.on("connection", (socket) => {
@@ -26,6 +26,9 @@ function socketHandler(io) {
     socket.on("stop_typing", ({ room_id, sender_id }) => {
       handleStopTyping(socket, room_id, sender_id);
     });
+
+    // 🟡 Handle online/offline
+    handleStatus(socket, io);
 
     socket.on("disconnect", () => {
       console.log("🔴 User disconnected:", socket.id);
