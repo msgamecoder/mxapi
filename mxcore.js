@@ -59,7 +59,7 @@ app.use('/ms', require('./mxgamecoder/mxsachat/mxjoin'));
 app.use('/ms', require('./mxgamecoder/mxsachat/mxchatroom'));
 app.use('/ms', require('./mxgamecoder/mxsachat/mxgenerateid'));
 app.use('/ms', require('./mxgamecoder/mxsachat/mxaddcontact'));
-app.use('/ms', require('./mxgamecoder/mxsachatu/mxsachat-voice'));
+app.use('/ms', require('./mxgamecoder/mxsachat/mxsachat-voice'));
 // Socket.IO chat logic
 const messageHandler = require('./mxgamecoder/mxsachat/mxmessage');
 messageHandler(io); // ✅ pass app as well
